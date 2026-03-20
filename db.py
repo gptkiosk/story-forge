@@ -219,6 +219,12 @@ class Chapter(Base):
         self.content_backup_encrypted = encryptor.encrypt(value)
 
 
+class TTSProviderType(enum.Enum):
+    """TTS provider type enumeration."""
+    MINIMAX = "minimax"
+    ELEVENLABS = "elevenlabs"
+
+
 class TTSJob(Base):
     """TTSJob model - represents a text-to-speech generation job."""
 
@@ -228,6 +234,13 @@ class TTSJob(Base):
     chapter_id = Column(
         Integer,
         ForeignKey("chapters.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    # Provider selection
+    provider = Column(
+        SQLEnum(TTSProviderType),
+        default=TTSProviderType.MINIMAX,
         nullable=False,
     )
     
@@ -244,7 +257,7 @@ class TTSJob(Base):
     error_message = Column(Text, nullable=True)
     
     # Output
-    audio_url = Column(String(1000), nullable=True)
+    audio_path = Column(String(1000), nullable=True)
     audio_duration = Column(Integer, nullable=True)  # seconds
     
     # Pricing
@@ -256,6 +269,35 @@ class TTSJob(Base):
 
     # Relationships
     chapter = relationship("Chapter", back_populates="tts_jobs")
+
+
+class CharacterVoice(Base):
+    """CharacterVoice model - stores voice IDs for each TTS provider."""
+
+    __tablename__ = "character_voices"
+
+    id = Column(Integer, primary_key=True)
+    book_id = Column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    # Character identifier
+    character_name = Column(String(255), nullable=False)
+    
+    # Voice IDs for each provider
+    minimax_voice_id = Column(String(100), nullable=True)
+    elevenlabs_voice_id = Column(String(100), nullable=True)
+    
+    # Voice metadata
+    voice_name = Column(String(255), nullable=True)
+    gender = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class User(Base):

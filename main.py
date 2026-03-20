@@ -7,10 +7,22 @@ import os
 import asyncio
 from pathlib import Path
 from urllib import parse as urllib_parse
+from datetime import datetime
 
-import nicegui as ui
+from nicegui import ui
 import auth
-from db import init_db, get_session, Book, Chapter, BookStatus
+import tts
+from db import (
+    init_db,
+    get_session,
+    Book,
+    Chapter,
+    BookStatus,
+    TTSJob,
+    TTSJobStatus,
+    TTSProviderType,
+    CharacterVoice,
+)
 
 # Configure environment
 DATA_DIR = Path("./data")
@@ -159,6 +171,15 @@ def get_chapters_for_book(book_id: int) -> list[Chapter]:
         db.close()
 
 
+def get_chapter_with_tts_jobs(chapter_id: int) -> Chapter | None:
+    """Get a chapter with all its TTS jobs loaded."""
+    db = get_session()
+    try:
+        return db.query(Chapter).filter(Chapter.id == chapter_id).first()
+    finally:
+        db.close()
+
+
 def create_chapter(book_id: int, title: str, order: int) -> Chapter:
     """Create a new chapter."""
     db = get_session()
@@ -268,8 +289,6 @@ def render_header():
 
 def create_app():
     """Create and configure the NiceGUI application."""
-    import nicegui as ui
-
     # Initialize database
     init_db()
 
@@ -495,8 +514,7 @@ def create_app():
                             with ui.column().classes("w-full"):
                                 with ui.row().classes("w-full justify-between items-start"):
                                     ui.label(book.title).classes("text-lg font-semibold")
-                                    from nicegui import ui as quasar_ui
-                                    quasar_ui.QBadge(
+                                    ui.badge(
                                         label=book.status.value.replace("_", " ").title(),
                                         color=status_colors.get(book.status.value, "grey"),
                                     )
@@ -675,14 +693,13 @@ def create_app():
                         if book.author:
                             ui.label(f"by {book.author}").classes("text-lg text-gray-500")
 
-                    from nicegui import ui as quasar_ui
                     status_colors = {
                         "draft": "grey",
                         "in_progress": "blue",
                         "completed": "green",
                         "archived": "grey-8",
                     }
-                    quasar_ui.QBadge(
+                    ui.badge(
                         label=book.status.value.replace("_", " ").title(),
                         color=status_colors.get(book.status.value, "grey"),
                     )
@@ -970,20 +987,451 @@ def create_app():
                         ui.button("Save Changes", on_click=save_chapter).props("color=primary")
 
 
+# =============================================================================
+# Voice Studio Pages
+# =============================================================================
+
+
+def get_voice_for_provider(character: CharacterVoice, provider: TTSProviderType) -> str:
+    """Get the voice ID for a specific provider."""
+    if provider == TTSProviderType.MINIMAX:
+        return character.minimax_voice_id or ""
+    return character.elevenlabs_voice_id or ""
+
+
+def render_voice_studio_header():
+    """Render the Voice Studio header with navigation."""
+    with ui.header().classes("bg-blue-900 text-white"):
+        with ui.row().classes("w-full items-center justify-between px-6"):
+            ui.label("🔊 Voice Studio").classes("text-xl font-bold")
+            with ui.row().classes("gap-4"):
+                ui.button(
+                    "Dashboard",
+                    icon="dashboard",
+                    on_click=lambda: ui.navigate.to("/dashboard")
+                ).props("flat color=white")
+                ui.button(
+                    "Books",
+                    icon="library_books",
+                    on_click=lambda: ui.navigate.to("/books")
+                ).props("flat color=white")
+                ui.button(
+                    "Voice Studio",
+                    icon="record_voice_over",
+                    on_click=lambda: ui.navigate.to("/voice-studio")
+                ).props("flat color=white")
+                if auth.is_authenticated():
+                    user_name = auth.get_session("user_name", "User")
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label(f"👤 {user_name}").classes("text-sm")
+                        ui.button(
+                            icon="logout",
+                            on_click=lambda: ui.navigate.to("/logout")
+                        ).props("flat color=white round")
+
+
+@ui.page("/voice-studio")
+def voice_studio_page():
+    """Voice Studio - main page for TTS management."""
+    if not auth.is_authenticated():
+        ui.navigate.to("/login")
+        return
+
+    render_voice_studio_header()
+
+    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+        ui.label("Voice Studio").classes("text-3xl font-bold")
+        ui.label("Text-to-speech generation for your chapters").classes("text-gray-500 mb-8")
+
+        # Check which providers are configured
+        providers = tts.tts_manager.get_available_providers()
+
+        if not providers:
+            with ui.card().classes("w-full p-8"):
+                ui.label("⚠️ No TTS Providers Configured").classes("text-xl font-bold")
+                ui.label("Please set up your MiniMax and/or ElevenLabs API keys in the .env file.").classes("text-gray-600 mt-2")
+                ui.label("MiniMax API Key: MINIMAX_API_KEY").classes("text-sm text-gray-500 mt-2")
+                ui.label("ElevenLabs API Key: ELEVENLABS_API_KEY").classes("text-sm text-gray-500")
+        else:
+            with ui.card().classes("w-full p-6 mb-6"):
+                ui.label("Available Providers").classes("text-lg font-semibold mb-4")
+                provider_names = ", ".join([p.value for p in providers])
+                ui.label(f"✓ {provider_names}").classes("text-green-600")
+
+            # List books for voice generation
+            ui.label("Select a Book to Narrate").classes("text-xl font-semibold mt-8 mb-4")
+
+            books = get_all_books(page=1, search="", status_filter="")[0]
+
+            if not books:
+                with ui.card().classes("w-full p-8"):
+                    ui.label("No books found").classes("text-gray-500")
+                    ui.button(
+                        "Create Your First Book",
+                        icon="add",
+                        on_click=lambda: ui.navigate.to("/books/new")
+                    ).props("color=primary").classes("mt-4")
+            else:
+                with ui.column().classes("w-full gap-4"):
+                    for book in books:
+                        with ui.card().classes("w-full p-4"):
+                            with ui.row().classes("w-full justify-between items-center"):
+                                with ui.column():
+                                    ui.label(book.title).classes("text-lg font-semibold")
+                                    ui.label(f"{len(book.chapters)} chapters • {book.word_count:,} words").classes("text-sm text-gray-500")
+                                with ui.row().classes("gap-2"):
+                                    ui.button(
+                                        "Narrate Book",
+                                        icon="play_arrow",
+                                        on_click=lambda b=book: ui.navigate.to(f"/voice-studio/book/{b.id}")
+                                    ).props("color=primary")
+
+
+@ui.page("/voice-studio/book/{book_id}")
+def voice_studio_book_page(book_id: int):
+    """Voice Studio - per-book voice management."""
+    if not auth.is_authenticated():
+        ui.navigate.to("/login")
+        return
+
+    book = get_book_by_id(book_id)
+    if not book:
+        ui.notify("Book not found", type="negative")
+        ui.navigate.to("/voice-studio")
+        return
+
+    render_voice_studio_header()
+
+    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label(f"Voice Studio: {book.title}").classes("text-2xl font-bold")
+            ui.button(
+                "← Back to Voice Studio",
+                icon="arrow_back",
+                on_click=lambda: ui.navigate.to("/voice-studio")
+            ).props("flat")
+
+        # Provider selection
+        providers = tts.tts_manager.get_available_providers()
+
+        with ui.card().classes("w-full mt-6 p-6"):
+            ui.label("Character Voices").classes("text-lg font-semibold mb-4")
+
+            db = get_session()
+
+            # Get or create character voices for this book
+            character_voices = db.query(CharacterVoice).filter(
+                CharacterVoice.book_id == book_id
+            ).all()
+            db.close()
+
+            if character_voices:
+                for cv in character_voices:
+                    with ui.card().classes("w-full p-4 mb-3 bg-gray-50"):
+                        with ui.row().classes("w-full justify-between items-center"):
+                            with ui.column():
+                                ui.label(cv.character_name).classes("font-semibold")
+                                if cv.voice_name:
+                                    ui.label(f"Voice: {cv.voice_name}").classes("text-sm text-gray-500")
+                            with ui.row().classes("gap-2"):
+                                if TTSProviderType.MINIMAX in providers:
+                                    minimax_vid = cv.minimax_voice_id or "Not set"
+                                    ui.badge(f"MiniMax: {minimax_vid}", color="blue").classes("text-xs")
+                                if TTSProviderType.ELEVENLABS in providers:
+                                    elevenlabs_vid = cv.elevenlabs_voice_id or "Not set"
+                                    ui.badge(f"ElevenLabs: {elevenlabs_vid}", color="green").classes("text-xs")
+            else:
+                ui.label("No character voices defined yet.").classes("text-gray-500")
+                ui.label("Add character voices when narrating chapters.").classes("text-sm text-gray-400")
+
+        # Chapters section
+        ui.label("Chapters").classes("text-xl font-semibold mt-8 mb-4")
+
+        chapters = get_chapters_for_book(book_id)
+
+        if not chapters:
+            with ui.card().classes("w-full p-8"):
+                ui.label("No chapters in this book yet.").classes("text-gray-500")
+        else:
+            with ui.column().classes("w-full gap-3"):
+                for chapter in chapters:
+                    with ui.card().classes("w-full p-4"):
+                        with ui.row().classes("w-full justify-between items-center"):
+                            with ui.column():
+                                ui.label(f"Chapter {chapter.order}: {chapter.title}").classes("font-semibold")
+                                ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
+                            with ui.row().classes("gap-2"):
+                                # Check if TTS job exists
+                                db = get_session()
+                                existing_job = db.query(TTSJob).filter(
+                                    TTSJob.chapter_id == chapter.id
+                                ).order_by(TTSJob.created_at.desc()).first()
+                                db.close()
+
+                                if existing_job:
+                                    status_color = {
+                                        TTSJobStatus.COMPLETED: "positive",
+                                        TTSJobStatus.FAILED: "negative",
+                                        TTSJobStatus.PENDING: "warning",
+                                        TTSJobStatus.PROCESSING: "info",
+                                    }.get(existing_job.status, "grey")
+                                    ui.badge(
+                                        existing_job.status.value.replace("_", " ").title(),
+                                        color=status_color
+                                    )
+
+                                ui.button(
+                                    "Narrate",
+                                    icon="play_arrow",
+                                    on_click=lambda c=chapter: ui.navigate.to(f"/voice-studio/book/{book_id}/chapter/{c.id}")
+                                ).props("color=primary")
+
+
+@ui.page("/voice-studio/book/{book_id}/chapter/{chapter_id}")
+def voice_studio_chapter_page(book_id: int, chapter_id: int):
+    """Voice Studio - narrate a specific chapter."""
+    if not auth.is_authenticated():
+        ui.navigate.to("/login")
+        return
+
+    book = get_book_by_id(book_id)
+    if not book:
+        ui.notify("Book not found", type="negative")
+        ui.navigate.to("/voice-studio")
+        return
+
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter or chapter.book_id != book_id:
+        ui.notify("Chapter not found", type="negative")
+        ui.navigate.to(f"/voice-studio/book/{book_id}")
+        return
+
+    render_voice_studio_header()
+
+    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label(f"Narrate: {chapter.title}").classes("text-2xl font-bold")
+            ui.button(
+                "← Back to Book",
+                icon="arrow_back",
+                on_click=lambda: ui.navigate.to(f"/voice-studio/book/{book_id}")
+            ).props("flat")
+
+        # Chapter preview
+        with ui.card().classes("w-full mt-4 p-6"):
+            ui.label(f"Chapter {chapter.order}").classes("text-sm text-gray-500")
+            ui.label(chapter.title).classes("text-xl font-semibold")
+            ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
+
+            if chapter.content:
+                preview = chapter.content[:500] + "..." if len(chapter.content) > 500 else chapter.content
+                with ui.card().classes("w-full mt-4 p-4 bg-gray-50"):
+                    ui.label("Content Preview:").classes("text-sm font-semibold")
+                    ui.label(preview).classes("text-sm")
+
+        # Provider selection
+        providers = tts.tts_manager.get_available_providers()
+
+        with ui.card().classes("w-full mt-6 p-6"):
+            ui.label("Narrate Chapter").classes("text-lg font-semibold mb-4")
+
+            # Provider selector
+            selected_provider = ui.select(
+                label="TTS Provider",
+                options=[{"label": p.value.title(), "value": p.value} for p in providers],
+                value=providers[0].value if providers else None,
+            ).classes("w-full").props("outlined")
+
+            # Voice selector
+            selected_voice = ui.select(
+                label="Voice",
+                options=[],
+                value=None,
+            ).classes("w-full").props("outlined")
+
+            # Model selector
+            selected_model = ui.select(
+                label="Model",
+                options=[
+                    {"label": "Speech-02 HD (High Quality)", "value": "speech-02-hd"},
+                    {"label": "Speech-02 Turbo (Fast)", "value": "speech-02-turbo"},
+                ],
+                value="speech-02-hd",
+            ).classes("w-full").props("outlined")
+
+            # Load voices when provider changes
+            async def load_voices(provider_value):
+                provider = TTSProviderType(provider_value)
+                voices = await tts.tts_manager.list_voices(provider)
+                if voices:
+                    selected_voice.options = [
+                        {"label": f"{v.name} ({v.voice_id})", "value": v.voice_id}
+                        for v in voices
+                    ]
+                    if voices:
+                        selected_voice.value = voices[0].voice_id
+                else:
+                    selected_voice.options = [{"label": "No voices available", "value": ""}]
+                    selected_voice.value = ""
+
+            async def on_provider_change(e):
+                await load_voices(e.value)
+
+            selected_provider.on_value_change(on_provider_change)
+
+            # Load initial voices
+            if providers:
+                asyncio.create_task(load_voices(providers[0].value))
+
+            # Narrate button
+            status_label = ui.label("").classes("mt-4")
+
+            async def narrate_chapter():
+                if not chapter.content:
+                    ui.notify("Chapter has no content to narrate", type="warning")
+                    return
+
+                provider_str = selected_provider.value
+                voice_id = selected_voice.value
+                model = selected_model.value
+
+                if not voice_id:
+                    ui.notify("Please select a voice", type="warning")
+                    return
+
+                provider = TTSProviderType(provider_str)
+                status_label.text = "Generating speech..."
+                ui.notify("Starting narration... This may take a moment.", type="info")
+
+                try:
+                    request = tts.TTSRequest(
+                        text=chapter.content,
+                        provider=provider,
+                        voice_id=voice_id,
+                        model=model,
+                        speed=1.0,
+                    )
+
+                    response = await tts.tts_manager.generate_speech(request)
+
+                    if response.error:
+                        ui.notify(f"Error: {response.error}", type="negative")
+                        status_label.text = ""
+                        return
+
+                    if response.audio_data:
+                        # Save audio file
+                        audio_path = tts.save_audio_file(
+                            book_id=book_id,
+                            chapter_id=chapter_id,
+                            provider=provider,
+                            audio_data=response.audio_data,
+                            format="mp3",
+                        )
+
+                        # Create TTS job record
+                        db = get_session()
+                        job = TTSJob(
+                            chapter_id=chapter_id,
+                            provider=provider,
+                            voice_id=voice_id,
+                            model=model,
+                            status=TTSJobStatus.COMPLETED,
+                            audio_path=audio_path,
+                            audio_duration=response.duration_seconds,
+                            cost_tokens=response.cost_tokens,
+                            completed_at=datetime.now(),
+                        )
+                        db.add(job)
+                        db.commit()
+                        db.close()
+
+                        ui.notify("Narration complete! 🎉", type="positive")
+                        status_label.text = f"Generated {len(response.audio_data):,} bytes"
+                    else:
+                        ui.notify("No audio generated", type="warning")
+                        status_label.text = ""
+
+                except Exception as e:
+                    ui.notify(f"Narration failed: {str(e)}", type="negative")
+                    status_label.text = ""
+
+            ui.button(
+                "🔊 Generate Narration",
+                on_click=narrate_chapter,
+            ).props("color=primary").classes("mt-4")
+
+        # Existing TTS jobs
+        if chapter.tts_jobs:
+            with ui.card().classes("w-full mt-6 p-6"):
+                ui.label("Previous Narrations").classes("text-lg font-semibold mb-4")
+
+                for job in chapter.tts_jobs:
+                    with ui.card().classes("w-full p-4 mb-3 bg-gray-50"):
+                        with ui.row().classes("w-full justify-between items-center"):
+                            with ui.column():
+                                ui.label(f"Provider: {job.provider.value.title()}").classes("font-semibold")
+                                ui.label(f"Voice: {job.voice_id}").classes("text-sm text-gray-500")
+                                ui.label(f"Model: {job.model}").classes("text-sm text-gray-500")
+                                if job.cost_tokens:
+                                    ui.label(f"Cost: {job.cost_tokens} tokens").classes("text-xs text-gray-400")
+                            with ui.column().classes("items-end"):
+                                status_color = {
+                                    TTSJobStatus.COMPLETED: "positive",
+                                    TTSJobStatus.FAILED: "negative",
+                                    TTSJobStatus.PENDING: "warning",
+                                    TTSJobStatus.PROCESSING: "info",
+                                }.get(job.status, "grey")
+                                ui.badge(
+                                    job.status.value.replace("_", " ").title(),
+                                    color=status_color
+                                )
+                                if job.audio_path and job.status == TTSJobStatus.COMPLETED:
+                                    ui.button(
+                                        "▶️ Play",
+                                        on_click=lambda j=job: _play_audio(j.audio_path)
+                                    ).props("flat size=sm").classes("mt-2")
+
+
+def _play_audio(audio_path: str):
+    """Play audio file in the UI."""
+    if not audio_path:
+        ui.notify("No audio file available", type="warning")
+        return
+
+    path = Path(audio_path)
+    if not path.exists():
+        ui.notify("Audio file not found", type="negative")
+        return
+
+    # Serve audio file
+    from nicegui import ui as quasar_ui
+    quasar_ui.audio(f"/static/audio/{path.name}").classes("w-full")
+
+
+# =============================================================================
+# Audio Static File Serving
+# =============================================================================
+
+
+def setup_audio_routes(app):
+    """Set up static audio file routes."""
+    import fastapi.staticfiles
+
+    # Mount audio directory for static serving
+    audio_dir = Path("./data/audio")
+    if audio_dir.exists():
+        app.mount("/static/audio", fastapi.staticfiles.StaticFiles(directory=str(audio_dir)), name="audio")
+
+
 def main():
     """Main entry point."""
-    import nicegui as ui
-
     # Create the app
     create_app()
 
-    # Configure UI
-    ui.config.title = APP_TITLE
-    ui.config.reload = False
-
     # Run the app
     port = int(os.environ.get("PORT", "8080"))
-    ui.run(host="0.0.0.0", port=port, reload=False)
+    ui.run(host="0.0.0.0", port=port, title=APP_TITLE, reload=False)
 
 
 if __name__ == "__main__":
