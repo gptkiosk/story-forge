@@ -258,6 +258,30 @@ class TTSJob(Base):
     chapter = relationship("Chapter", back_populates="tts_jobs")
 
 
+class User(Base):
+    """User model - represents an authenticated user via OAuth."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    
+    # OAuth provider info
+    provider = Column(String(50), nullable=False, default="google")
+    provider_user_id = Column(String(255), nullable=False, unique=True)
+    
+    # User info from OAuth
+    email = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
+    
+    # Internal user identifier for single-user context
+    internal_user_id = Column(String(100), nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    last_login_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
 # =============================================================================
 # Session Management
 # =============================================================================
