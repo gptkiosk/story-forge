@@ -1,0 +1,25 @@
+# Story Forge - Self-Publishing Dashboard
+# Python dependencies
+
+# Core
+nicegui>=3.0.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
+
+# Database
+SQLAlchemy>=2.0.0
+aiosqlite>=0.19.0
+
+# Authentication
+authlib>=1.0.0
+google-auth>=2.0.0
+
+# Cloud Storage (for backups)
+google-cloud-storage>=2.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Utilities
+pydantic>=2.0.0
+pyyaml>=6.0.0
