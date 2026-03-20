@@ -69,7 +69,7 @@ def main():
     import nicegui as ui
     
     # Create the app
-    app = create_app()
+    create_app()
     
     # Configure UI
     ui.config.title = APP_TITLE
