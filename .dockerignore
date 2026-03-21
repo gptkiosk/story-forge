@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+*.egg-info
+
+# Tests
+tests
+.pytest_cache
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Data (don't copy local data files)
+data
+*.db
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.*
+
+# Documentation
+*.md
+!requirements.txt
+
+# Terraform (don't need in container)
+terraform/
+*.tf
+*.tfstate
+*.tfstate.*
+
+# GitHub
+.github

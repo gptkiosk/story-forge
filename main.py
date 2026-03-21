@@ -12,6 +12,7 @@ from datetime import datetime
 from nicegui import ui
 import auth
 import tts
+import backup
 from db import (
     init_db,
     get_session,
@@ -1407,6 +1408,175 @@ def _play_audio(audio_path: str):
     # Serve audio file
     from nicegui import ui as quasar_ui
     quasar_ui.audio(f"/static/audio/{path.name}").classes("w-full")
+
+
+# =============================================================================
+# Backup Management Pages
+# =============================================================================
+
+
+@ui.page("/backups")
+def backups_page():
+    """Backup management page."""
+    if not auth.is_authenticated():
+        ui.navigate.to("/login")
+        return
+
+    # Header
+    with ui.header().classes("bg-white shadow"):
+        with ui.row().classes("w-full justify-between items-center px-4"):
+            ui.label(APP_TITLE).classes("text-xl font-bold text-gray-800")
+
+            with ui.row().classes("items-center gap-2"):
+                ui.button(
+                    "Dashboard",
+                    on_click=lambda: ui.navigate.to("/dashboard"),
+                    icon="dashboard"
+                ).props("flat dense").classes("text-gray-600")
+                ui.button(
+                    "Books",
+                    on_click=lambda: ui.navigate.to("/books"),
+                    icon="library_books"
+                ).props("flat dense").classes("text-gray-600")
+                ui.button(
+                    "Voice Studio",
+                    on_click=lambda: ui.navigate.to("/voice-studio"),
+                    icon="record_voice_over"
+                ).props("flat dense").classes("text-gray-600")
+                ui.button(
+                    "Backups",
+                    on_click=lambda: ui.navigate.to("/backups"),
+                    icon="backup"
+                ).props("flat dense").classes("text-blue-600")
+                if auth.is_authenticated():
+                    user_name = auth.get_session("user_name", "User")
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label(f"👤 {user_name}").classes("text-sm")
+                        ui.button(
+                            icon="logout",
+                            on_click=lambda: ui.navigate.to("/logout")
+                        ).props("flat round")
+
+    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.label("Backup Management").classes("text-3xl font-bold")
+            ui.button(
+                "Create Backup",
+                icon="backup",
+                on_click=lambda: _create_backup()
+            ).props("color=primary")
+
+        # Backup info
+        last_backup = backup.get_last_backup_info()
+        with ui.card().classes("w-full mt-4 p-4"):
+            if last_backup:
+                ui.label(f"Last backup: {last_backup.get('created_at', 'unknown')}").classes("text-sm text-gray-600")
+                ui.label(f"Size: {last_backup.get('size', 0):,} bytes").classes("text-sm text-gray-500")
+            else:
+                ui.label("No backups yet").classes("text-gray-500")
+
+        # Backup list
+        ui.label("Available Backups").classes("text-xl font-semibold mt-8 mb-4")
+
+        backups = backup.list_backups()
+
+        if not backups:
+            with ui.card().classes("w-full p-8"):
+                ui.label("No backups available").classes("text-gray-500 text-center")
+                ui.label("Create your first backup to protect your data.").classes("text-center mt-2")
+        else:
+            with ui.column().classes("w-full gap-3"):
+                for bk in backups[:10]:  # Show max 10
+                    with ui.card().classes("w-full p-4"):
+                        with ui.row().classes("w-full justify-between items-center"):
+                            with ui.column():
+                                ui.label(bk.get("book_title", "Unknown")).classes("font-semibold")
+                                ui.label(f"Created: {bk.get('created_at', 'unknown')}").classes("text-sm text-gray-500")
+                                ui.label(f"Size: {bk.get('size', 0):,} bytes").classes("text-xs text-gray-400")
+                            with ui.row().classes("gap-2"):
+                                # Verify button
+                                is_valid = backup.verify_backup(bk.get("path", ""))
+                                status_color = "positive" if is_valid else "negative"
+                                ui.badge(
+                                    "✓ Valid" if is_valid else "✗ Invalid",
+                                    color=status_color
+                                )
+                                # Restore button
+                                ui.button(
+                                    "Restore",
+                                    icon="restore",
+                                    on_click=lambda b=bk: _confirm_restore(b)
+                                ).props("flat size=sm")
+                                # Delete button
+                                ui.button(
+                                    icon="delete",
+                                    on_click=lambda b=bk: _confirm_delete_backup(b)
+                                ).props("flat size=sm color=negative")
+
+        # Cleanup info
+        with ui.card().classes("w-full mt-8 p-4"):
+            ui.label(f"Retention: Max {backup.MAX_BACKUPS} backups, {backup.MAX_AGE_DAYS} days").classes("text-sm text-gray-500")
+
+    # Refresh table
+    def _create_backup():
+        try:
+            db_path = Path("./data/story_forge.db")
+            if not db_path.exists():
+                ui.notify("Database file not found", type="warning")
+                return
+
+            result = backup.create_backup(db_path, "story_forge")
+            ui.notify(f"Backup created: {result['size']:,} bytes", type="positive")
+            ui.navigate.to("/backups")
+        except Exception as e:
+            ui.notify(f"Backup failed: {e}", type="negative")
+
+    def _confirm_restore(bk: dict):
+        with ui.dialog() as dialog, ui.card():
+            ui.label("⚠️ Restore Backup?").classes("text-xl font-bold")
+            ui.label("This will replace your current database with:").classes("mt-4")
+            ui.label(f"Backup from: {bk.get('created_at', 'unknown')}").classes("text-sm")
+            ui.label("Any unsaved changes will be lost.").classes("text-sm text-gray-500 mt-4")
+            with ui.row().classes("w-full justify-end gap-2 mt-4"):
+                ui.button("Cancel", on_click=dialog.close).props("flat")
+                ui.button(
+                    "Restore",
+                    on_click=lambda: _do_restore(bk, dialog)
+                ).props("color=negative")
+        dialog.open()
+
+    def _do_restore(bk: dict, dialog):
+        try:
+            db_path = Path("./data/story_forge.db")
+            backup.restore_backup(bk.get("path"), db_path)
+            ui.notify("Database restored successfully", type="positive")
+            dialog.close()
+        except Exception as e:
+            ui.notify(f"Restore failed: {e}", type="negative")
+            dialog.close()
+
+    def _confirm_delete_backup(bk: dict):
+        with ui.dialog() as dialog, ui.card():
+            ui.label("⚠️ Delete Backup?").classes("text-xl font-bold")
+            ui.label(f"Backup from: {bk.get('created_at', 'unknown')}").classes("mt-4")
+            ui.label("This cannot be undone.").classes("text-sm text-gray-500")
+            with ui.row().classes("w-full justify-end gap-2 mt-4"):
+                ui.button("Cancel", on_click=dialog.close).props("flat")
+                ui.button(
+                    "Delete",
+                    on_click=lambda: _do_delete(bk, dialog)
+                ).props("color=negative")
+        dialog.open()
+
+    def _do_delete(bk: dict, dialog):
+        try:
+            Path(bk.get("path", "")).unlink()
+            ui.notify("Backup deleted", type="positive")
+            dialog.close()
+            ui.navigate.to("/backups")
+        except Exception as e:
+            ui.notify(f"Delete failed: {e}", type="negative")
+            dialog.close()
 
 
 # =============================================================================
