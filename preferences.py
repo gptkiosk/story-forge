@@ -9,42 +9,148 @@ from db import UserPreference, get_session
 
 
 # =============================================================================
-# Theme Configuration
+# Theme Configuration - Warm Studio Palette
 # =============================================================================
 
 class Theme:
-    """UI Theme configuration."""
+    """UI Theme configuration with warm, cozy writing studio colors."""
 
     LIGHT = "light"
     DARK = "dark"
 
     VALID_THEMES = {LIGHT, DARK}
 
-    # Tailwind color schemes for each theme
-    SCHEMES = {
-        LIGHT: {
-            "bg_primary": "bg-white",
-            "bg_secondary": "bg-gray-50",
-            "bg_card": "bg-white",
-            "text_primary": "text-gray-800",
-            "text_secondary": "text-gray-600",
-            "text_muted": "text-gray-500",
-            "border": "border-gray-200",
-            "header_bg": "bg-white",
-            "accent": "blue",
-        },
-        DARK: {
-            "bg_primary": "bg-gray-900",
-            "bg_secondary": "bg-gray-800",
-            "bg_card": "bg-gray-800",
-            "text_primary": "text-gray-100",
-            "text_secondary": "text-gray-300",
-            "text_muted": "text-gray-400",
-            "border": "border-gray-700",
-            "header_bg": "bg-gray-900",
-            "accent": "blue",
-        },
+    # Warm Cream Light Mode
+    LIGHT_SCHEME = {
+        # Backgrounds
+        "bg_primary": "#FDF8F3",
+        "bg_secondary": "#F7F1EB",
+        "bg_card": "#FFFFFF",
+        "bg_header": "#FFFFFF",
+        "bg_input": "#FFFFFF",
+        "bg_hover": "#F5EFE8",
+        "bg_selected": "#EDE6DD",
+
+        # Text
+        "text_primary": "#2D2A26",
+        "text_secondary": "#6B6560",
+        "text_muted": "#9A948D",
+        "text_inverse": "#FFFFFF",
+
+        # Accents
+        "accent_primary": "#C9A96E",
+        "accent_hover": "#B8955A",
+        "accent_soft": "#F5EDE0",
+        "accent_blue": "#6B8CAE",
+        "accent_green": "#7CAE8D",
+        "accent_purple": "#9B8BB4",
+
+        # Borders
+        "border_light": "#E8E0D8",
+        "border_medium": "#D4CBC2",
+
+        # Status
+        "status_draft": "#9A948D",
+        "status_in_progress": "#6B8CAE",
+        "status_completed": "#7CAE8D",
+        "status_archived": "#B8955A",
+        "status_pending": "#D4B87A",
+        "status_failed": "#CA8B8B",
+
+        # Shadows
+        "shadow_sm": "0 1px 2px rgba(45, 42, 38, 0.05)",
+        "shadow_md": "0 4px 12px rgba(45, 42, 38, 0.08)",
+        "shadow_lg": "0 8px 24px rgba(45, 42, 38, 0.12)",
+
+        # Radii
+        "radius_sm": "6px",
+        "radius_md": "10px",
+        "radius_lg": "16px",
+        "radius_full": "9999px",
     }
+
+    # Soft Shaded Dark Mode (not pure black - warm dark brown)
+    DARK_SCHEME = {
+        # Backgrounds
+        "bg_primary": "#1A1816",
+        "bg_secondary": "#232019",
+        "bg_card": "#2A2723",
+        "bg_header": "#1F1D1A",
+        "bg_input": "#2A2723",
+        "bg_hover": "#352F2A",
+        "bg_selected": "#3D3630",
+
+        # Text
+        "text_primary": "#F5F0EB",
+        "text_secondary": "#A8A099",
+        "text_muted": "#6B6560",
+        "text_inverse": "#1A1816",
+
+        # Accents
+        "accent_primary": "#D4B87A",
+        "accent_hover": "#E5C98A",
+        "accent_soft": "#3D3528",
+        "accent_blue": "#8BA8C4",
+        "accent_green": "#8BC4A8",
+        "accent_purple": "#B4A8CC",
+
+        # Borders
+        "border_light": "#3D3933",
+        "border_medium": "#524B43",
+
+        # Status
+        "status_draft": "#A8A099",
+        "status_in_progress": "#8BA8C4",
+        "status_completed": "#8BC4A8",
+        "status_archived": "#D4B87A",
+        "status_pending": "#E5C98A",
+        "status_failed": "#CA9B9B",
+
+        # Shadows
+        "shadow_sm": "0 1px 2px rgba(0, 0, 0, 0.2)",
+        "shadow_md": "0 4px 12px rgba(0, 0, 0, 0.3)",
+        "shadow_lg": "0 8px 24px rgba(0, 0, 0, 0.4)",
+
+        # Radii
+        "radius_sm": "6px",
+        "radius_md": "10px",
+        "radius_lg": "16px",
+        "radius_full": "9999px",
+    }
+
+    SCHEMES = {
+        LIGHT: LIGHT_SCHEME,
+        DARK: DARK_SCHEME,
+    }
+
+
+# =============================================================================
+# Writers' Quotes
+# =============================================================================
+
+WRITERS_QUOTES = [
+    "Start writing, no matter what. The water does not flow until the faucet is turned on. — Louis L'Amour",
+    "There is no greater agony than bearing an untold story inside you. — Maya Angelou",
+    "You can always edit a bad page. You can't edit a blank page. — Terry Pratchett",
+    "The first draft is just you telling yourself the story. — Terry Pratchett",
+    "Writing is easy. All you have to do is cross out the wrong words. — Mark Twain",
+    "One day I will find the right words, and they will be simple. — Jack Kerouac",
+    "Fill your paper with the breathings of your heart. — William Wordsworth",
+    "Either write something worth reading or do something worth writing. — Benjamin Franklin",
+    "A writer is someone for whom writing is more difficult than it is for other people. — Thomas Mann",
+    "The scariest moment is always just before you start. — Stephen King",
+    "You don't start out writing good stuff. You start out writing crap and thinking it's good stuff. — Octavia E. Butler",
+    "I write to discover what I know. — Flannery O'Connor",
+    "Writing is thinking on paper. — William Zinsser",
+    "The art of writing is the art of discovering what you believe. — Gustave Flaubert",
+    "If you want to be a writer, you must do two things: read a lot and write a lot. — Stephen King",
+]
+
+
+def get_random_quote() -> str:
+    """Get a random writers' quote."""
+    import random
+    return random.choice(WRITERS_QUOTES)
 
 
 # =============================================================================
@@ -140,6 +246,31 @@ def get_theme_css_classes(theme: str) -> dict:
         Dictionary of CSS class mappings
     """
     return Theme.SCHEMES.get(theme, Theme.SCHEMES[Theme.LIGHT])
+
+
+def get_theme_inline_styles(theme: str) -> dict:
+    """
+    Get inline style mappings for a theme.
+    Used for NiceGUI components.
+
+    Args:
+        theme: Theme string
+
+    Returns:
+        Dictionary of style mappings
+    """
+    scheme = Theme.SCHEMES.get(theme, Theme.SCHEMES[Theme.LIGHT])
+
+    return {
+        "bg_primary": f"background-color: {scheme['bg_primary']}",
+        "bg_secondary": f"background-color: {scheme['bg_secondary']}",
+        "bg_card": f"background-color: {scheme['bg_card']}",
+        "text_primary": f"color: {scheme['text_primary']}",
+        "text_secondary": f"color: {scheme['text_secondary']}",
+        "text_muted": f"color: {scheme['text_muted']}",
+        "border_light": f"border-color: {scheme['border_light']}",
+        "accent_primary": f"color: {scheme['accent_primary']}",
+    }
 
 
 def update_user_preference(
@@ -244,3 +375,19 @@ def delete_user_preferences(user_id: int) -> bool:
         return False
     finally:
         db.close()
+
+
+def get_status_color(status: str, theme: str) -> str:
+    """
+    Get status color for a given status and theme.
+
+    Args:
+        status: Status string (draft, in_progress, completed, etc.)
+        theme: Theme string
+
+    Returns:
+        Color string
+    """
+    scheme = Theme.SCHEMES.get(theme, Theme.SCHEMES[Theme.LIGHT])
+    key = f"status_{status.lower()}"
+    return scheme.get(key, scheme["status_draft"])

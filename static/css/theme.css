@@ -1,0 +1,656 @@
+/* Story Forge - Warm Studio Theme */
+/* A cozy, professional writing studio aesthetic */
+
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Caveat:wght@400;600&family=Inter:wght@400;500;600&display=swap');
+
+/* =============================================================================
+   CSS Custom Properties - Warm Cream Light Mode (Default)
+   ============================================================================= */
+
+:root {
+  /* Background Colors */
+  --bg-primary: #FDF8F3;
+  --bg-secondary: #F7F1EB;
+  --bg-card: #FFFFFF;
+  --bg-header: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-hover: #F5EFE8;
+  --bg-selected: #EDE6DD;
+
+  /* Text Colors */
+  --text-primary: #2D2A26;
+  --text-secondary: #6B6560;
+  --text-muted: #9A948D;
+  --text-inverse: #FFFFFF;
+
+  /* Accent Colors */
+  --accent-primary: #C9A96E;
+  --accent-hover: #B8955A;
+  --accent-soft: #F5EDE0;
+  --accent-blue: #6B8CAE;
+  --accent-green: #7CAE8D;
+  --accent-purple: #9B8BB4;
+
+  /* Border Colors */
+  --border-light: #E8E0D8;
+  --border-medium: #D4CBC2;
+
+  /* Status Colors */
+  --status-draft: #9A948D;
+  --status-in-progress: #6B8CAE;
+  --status-completed: #7CAE8D;
+  --status-archived: #B8955A;
+  --status-pending: #D4B87A;
+  --status-failed: #CA8B8B;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(45, 42, 38, 0.05);
+  --shadow-md: 0 4px 12px rgba(45, 42, 38, 0.08);
+  --shadow-lg: 0 8px 24px rgba(45, 42, 38, 0.12);
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-serif: 'Merriweather', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-script: 'Caveat', cursive;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+/* =============================================================================
+   Dark Mode - Soft Shaded Theme
+   ============================================================================= */
+
+[data-theme="dark"] {
+  /* Background Colors */
+  --bg-primary: #1A1816;
+  --bg-secondary: #232019;
+  --bg-card: #2A2723;
+  --bg-header: #1F1D1A;
+  --bg-input: #2A2723;
+  --bg-hover: #352F2A;
+  --bg-selected: #3D3630;
+
+  /* Text Colors */
+  --text-primary: #F5F0EB;
+  --text-secondary: #A8A099;
+  --text-muted: #6B6560;
+  --text-inverse: #1A1816;
+
+  /* Accent Colors */
+  --accent-primary: #D4B87A;
+  --accent-hover: #E5C98A;
+  --accent-soft: #3D3528;
+  --accent-blue: #8BA8C4;
+  --accent-green: #8BC4A8;
+  --accent-purple: #B4A8CC;
+
+  /* Border Colors */
+  --border-light: #3D3933;
+  --border-medium: #524B43;
+
+  /* Status Colors */
+  --status-draft: #A8A099;
+  --status-in-progress: #8BA8C4;
+  --status-completed: #8BC4A8;
+  --status-archived: #D4B87A;
+  --status-pending: #E5C98A;
+  --status-failed: #CA9B9B;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* =============================================================================
+   Base Styles
+   ============================================================================= */
+
+html, body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* =============================================================================
+   Typography
+   ============================================================================= */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+
+h1 { font-size: 2.5rem; font-weight: 700; }
+h2 { font-size: 2rem; font-weight: 600; }
+h3 { font-size: 1.5rem; font-weight: 600; }
+h4 { font-size: 1.25rem; font-weight: 600; }
+
+p {
+  font-family: var(--font-serif);
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* Writers' Quote Script */
+.writer-quote {
+  font-family: var(--font-script);
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1.5rem 2rem;
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.writer-quote::before {
+  content: '"';
+  font-size: 3rem;
+  color: var(--accent-primary);
+  opacity: 0.5;
+  display: block;
+  line-height: 1;
+  margin-bottom: -0.5rem;
+}
+
+/* =============================================================================
+   Cards
+   ============================================================================= */
+
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-medium);
+}
+
+.card-title {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.card-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Buttons - Rounded & Modern
+   ============================================================================= */
+
+.btn {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+}
+
+.btn-secondary:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-medium);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =============================================================================
+   Inputs
+   ============================================================================= */
+
+.input {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  width: 100%;
+  transition: all var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Badges & Status
+   ============================================================================= */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.badge-draft {
+  background-color: var(--bg-secondary);
+  color: var(--status-draft);
+}
+
+.badge-in-progress {
+  background-color: rgba(107, 140, 174, 0.15);
+  color: var(--status-in-progress);
+}
+
+.badge-completed {
+  background-color: rgba(124, 174, 141, 0.15);
+  color: var(--status-completed);
+}
+
+.badge-archived {
+  background-color: rgba(184, 149, 90, 0.15);
+  color: var(--status-archived);
+}
+
+.badge-pending {
+  background-color: rgba(212, 184, 122, 0.15);
+  color: var(--status-pending);
+}
+
+.badge-failed {
+  background-color: rgba(202, 139, 139, 0.15);
+  color: var(--status-failed);
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.header {
+  background-color: var(--bg-header);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0.75rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="dark"] .header {
+  background-color: rgba(31, 29, 26, 0.95);
+}
+
+.header-title {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* =============================================================================
+   Navigation
+   ============================================================================= */
+
+.nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-link.active {
+  background-color: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+/* =============================================================================
+   Page Layout
+   ============================================================================= */
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+
+/* =============================================================================
+   Stats Cards
+   ============================================================================= */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  text-align: center;
+  transition: all var(--transition-normal);
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-family: var(--font-serif);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.stat-sublabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Book Cards
+   ============================================================================= */
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.book-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: all var(--transition-normal);
+  cursor: pointer;
+}
+
+.book-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-primary);
+}
+
+.book-title {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.book-author {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.book-description {
+  font-family: var(--font-serif);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.book-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Login Page
+   ============================================================================= */
+
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-primary);
+  padding: 2rem;
+}
+
+.login-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 3rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.login-logo {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.login-tagline {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 2rem;
+}
+
+/* =============================================================================
+   Dividers
+   ============================================================================= */
+
+.divider {
+  height: 1px;
+  background-color: var(--border-light);
+  margin: 1.5rem 0;
+}
+
+/* =============================================================================
+   Footer with Writers' Quote
+   ============================================================================= */
+
+.footer {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  border-top: 1px solid var(--border-light);
+  margin-top: auto;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease forwards;
+}
+
+/* =============================================================================
+   Dev Mode Badge
+   ============================================================================= */
+
+.dev-badge {
+  background-color: #E67E22;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .book-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-card {
+    padding: 2rem;
+  }
+}

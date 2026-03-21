@@ -1,6 +1,9 @@
 """
 Story Forge - Self-Publishing Dashboard
 Main entry point for the NiceGUI application.
+
+A cozy, professional writing studio for self-publishers.
+Warm cream palette with soft dark mode.
 """
 
 import os
@@ -36,9 +39,13 @@ DATA_DIR.mkdir(exist_ok=True)
 # Application configuration
 APP_TITLE = "Story Forge"
 APP_VERSION = "0.1.0"
+APP_TAGLINE = "Your cozy writing studio"
 
 # Pagination settings
 ITEMS_PER_PAGE = 10
+
+# Theme CSS path
+THEME_CSS = "/static/css/theme.css"
 
 
 # =============================================================================
@@ -256,7 +263,7 @@ def recalculate_book_word_count(book_id: int) -> int:
 # =============================================================================
 
 def render_header():
-    """Render the common header with navigation."""
+    """Render the common header with navigation - warm studio theme."""
     user_email = auth.get_session("user_email", "")
     user_avatar = auth.get_session("user_avatar", "")
     user_id = auth.get_session("user_id")
@@ -269,54 +276,61 @@ def render_header():
     theme_icon = "dark_mode" if current_theme == preferences.Theme.LIGHT else "light_mode"
     theme_label = "Dark Mode" if current_theme == preferences.Theme.LIGHT else "Light Mode"
 
-    # Get theme-aware classes
-    header_bg = ui_theme.header_classes(current_theme)
-    header_text = ui_theme.theme_classes(current_theme, "text_primary")
-    button_text = ui_theme.button_text_classes(current_theme)
+    # Get theme styles
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    with ui.header().classes(f"{header_bg} shadow"):
-        with ui.row().classes("w-full justify-between items-center px-4"):
-            with ui.row().classes("items-center gap-3"):
-                ui.label(APP_TITLE).classes(f"text-xl font-bold {header_text}")
+    # Header with warm styling
+    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 1.5rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
+
+    with ui.header().classes("").style(header_style):
+        with ui.row().classes("w-full justify-between items-center"):
+            with ui.row().classes("items-center gap-4"):
+                # App title in serif font
+                ui.label(APP_TITLE).style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
 
                 # Dev mode indicator
                 if auth.is_dev_mode():
-                    ui.badge("DEV MODE", color="orange").classes("text-xs font-bold")
+                    ui.label("DEV MODE").style(
+                        "background-color: #E67E22; color: white; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;"
+                    )
 
-            with ui.row().classes("items-center gap-2"):
-                ui.button(
-                    "Dashboard",
-                    on_click=lambda: ui.navigate.to("/dashboard"),
-                    icon="dashboard"
-                ).props("flat dense").classes(button_text)
-                ui.button(
-                    "Books",
-                    on_click=lambda: ui.navigate.to("/books"),
-                    icon="library_books"
-                ).props("flat dense").classes(button_text)
-                ui.button(
-                    "Voice Studio",
-                    on_click=lambda: ui.navigate.to("/voice-studio"),
-                    icon="record_voice_over"
-                ).props("flat dense").classes(button_text)
+            with ui.row().classes("items-center gap-1"):
+                # Navigation buttons - warm ghost style
+                nav_buttons = [
+                    ("Dashboard", "dashboard", "/dashboard"),
+                    ("Books", "library_books", "/books"),
+                    ("Voice Studio", "record_voice_over", "/voice-studio"),
+                    ("Backups", "backup", "/backups"),
+                ]
+
+                for label, icon, route in nav_buttons:
+                    ui.button(
+                        label,
+                        icon=icon,
+                        on_click=lambda r=route: ui.navigate.to(r)
+                    ).props("flat dense").style(
+                        f"background-color: transparent; color: {scheme['text_secondary']}; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
+                    )
+
+                # Divider
+                ui.separator().props("vertical").style(f"height: 24px; background-color: {scheme['border_light']}; margin: 0 0.5rem;")
 
                 # Theme toggle button
                 ui.button(
                     theme_label,
                     icon=theme_icon,
-                    on_click=lambda: _toggle_theme(),
-                ).props("flat dense").classes(button_text)
+                    on_click=lambda: _toggle_theme()
+                ).props("flat dense").style(
+                    f"background-color: {scheme['bg_secondary']}; color: {scheme['text_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
+                )
 
+                # User avatar
                 if user_avatar:
-                    ui.avatar(source=user_avatar, size="sm")
+                    ui.avatar(source=user_avatar, size="sm").style("margin-left: 0.5rem;")
                 else:
-                    ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm")
-
-                ui.button(
-                    "Logout",
-                    on_click=lambda: ui.navigate.to("/logout"),
-                    icon="logout"
-                ).props("flat dense color=negative")
+                    ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm").style("margin-left: 0.5rem;")
 
 
 def _toggle_theme():
@@ -325,7 +339,8 @@ def _toggle_theme():
     if user_id:
         new_theme, _ = preferences.toggle_theme(user_id)
         # Refresh to apply new theme
-        ui.navigate.to(ui.route)
+        # Refresh the current page to apply new theme
+        ui.navigate.to(ui.request.url.path)
     else:
         # For non-authenticated users, use client-side toggle via JavaScript
         ui.run_javascript("""
@@ -354,7 +369,7 @@ def create_app():
 
     @ui.page("/login")
     def login_page():
-        """Login page with Google OAuth."""
+        """Login page with Google OAuth - warm studio theme."""
         if auth.is_authenticated():
             ui.navigate.to("/dashboard")
             return
@@ -365,28 +380,52 @@ def create_app():
             ui.navigate.to("/dashboard")
             return
 
-        with ui.column().classes("w-full h-screen justify-center items-center"):
-            with ui.card().classes("w-96 p-8"):
-                ui.label(APP_TITLE).classes("text-3xl font-bold text-center text-gray-800")
-                ui.label(f"Version {APP_VERSION}").classes("text-sm text-gray-500 text-center")
+        # Get random writers' quote
+        quote = preferences.get_random_quote()
 
-                ui.separator()
+        # Login container with warm cream background
+        with ui.column().style(ui_theme.login_container_styles("light")).classes("w-full"):
+            # Login card - warm and inviting
+            with ui.card().classes("").style(ui_theme.login_card_styles("light")):
+                # App title with serif font
+                ui.label(APP_TITLE).classes("text-3xl font-bold").style(
+                    "font-family: 'Merriweather', Georgia, serif; color: #2D2A26; text-align: center;"
+                )
+                ui.label(APP_TAGLINE).classes("text-sm").style(
+                    "font-family: 'Merriweather', Georgia, serif; color: #9A948D; font-style: italic; margin-bottom: 1.5rem;"
+                )
 
-                ui.label("Sign in to continue").classes("text-lg text-center mt-4")
+                # Writers' quote at top
+                ui.label(quote).classes("text-base").style(
+                    "font-family: 'Caveat', cursive; color: #9A948D; font-style: italic; padding: 1rem 0; border-top: 1px solid #E8E0D8; border-bottom: 1px solid #E8E0D8; margin: 1rem 0;"
+                )
+
+                ui.label("Sign in to continue").classes("text-lg font-medium mt-4").style(
+                    "color: #2D2A26;"
+                )
 
                 def go_to_google():
                     login_url = auth.get_login_url()
                     ui.navigate.to(login_url, new_tab=True)
 
-                ui.button(
+                # Rounded modern button
+                with ui.button(
                     "Sign in with Google",
                     on_click=go_to_google,
                     icon="login"
-                ).classes("w-full mt-4")
+                ).classes("w-full mt-4").style(ui_theme.button_primary_styles()):
+                    pass
 
-                ui.label(
-                    "Secure authentication powered by Google OAuth 2.0"
-                ).classes("text-xs text-gray-400 text-center mt-4")
+                # Auth footer
+                ui.label("Secure authentication powered by Google OAuth 2.0").classes("text-xs mt-6").style(
+                    "color: #9A948D;"
+                )
+
+                # Dev mode hint
+                if os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes"):
+                    ui.label("DEV MODE: Auth bypass enabled").classes("text-xs mt-2").style(
+                        "color: #E67E22; font-weight: 600;"
+                    )
 
     @ui.page("/auth/callback")
     def auth_callback_page(code: str = None, state: str = None, error: str = None):
@@ -446,64 +485,113 @@ def create_app():
         if user_id:
             current_theme = preferences.get_theme_for_user(user_id)
 
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
+
         # Header
         render_header()
 
-        # Get theme-aware classes
-        text_primary = ui_theme.theme_classes(current_theme, "text_primary")
-        text_muted = ui_theme.theme_classes(current_theme, "text_muted")
-        card_bg = ui_theme.card_classes(current_theme)
+        # Get random writers' quote
+        quote = preferences.get_random_quote()
 
-        # Dashboard content
-        with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-            ui.label(f"Welcome back, {user_name}!").classes(f"text-3xl font-bold {text_primary}")
-            ui.label("Your publishing overview").classes(f"{text_muted} mb-8")
+        # Page background
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            # Stats cards
-            book_count = get_book_count()
-            chapter_count = get_chapter_count()
-            total_words = get_total_word_count()
+        with ui.column().classes("w-full").style(page_style):
+            # Page content
+            with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+                # Welcome section
+                ui.label(f"Welcome back, {user_name}!").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']}; margin-bottom: 0.5rem;"
+                )
+                ui.label("Your cozy writing studio awaits").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1rem; color: {scheme['text_muted']}; margin-bottom: 2rem;"
+                )
 
-            with ui.row().classes("w-full gap-4 flex-wrap"):
-                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
-                    with ui.column().classes("items-center"):
-                        ui.icon("library_books", size="xl", color="blue").classes("mb-2")
-                        ui.label(str(book_count)).classes("text-4xl font-bold text-blue-600")
-                        ui.label("Books").classes("text-lg font-semibold")
-                        ui.label("in library").classes(f"text-sm {text_muted}")
+                # Writers' quote
+                ui.label(quote).style(
+                    f"font-family: 'Caveat', cursive; font-size: 1.25rem; color: {scheme['text_muted']}; font-style: italic; padding: 1rem 1.5rem; background-color: {scheme['bg_secondary']}; border-radius: 16px; margin-bottom: 2rem; max-width: 600px;"
+                )
 
-                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
-                    with ui.column().classes("items-center"):
-                        ui.icon("article", size="xl", color="green").classes("mb-2")
-                        ui.label(str(chapter_count)).classes("text-4xl font-bold text-green-600")
-                        ui.label("Chapters").classes("text-lg font-semibold")
-                        ui.label("written").classes(f"text-sm {text_muted}")
+                # Stats cards - warm studio style
+                book_count = get_book_count()
+                chapter_count = get_chapter_count()
+                total_words = get_total_word_count()
 
-                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
-                    with ui.column().classes("items-center"):
-                        ui.icon("text_fields", size="xl", color="purple").classes("mb-2")
-                        ui.label(f"{total_words:,}").classes("text-4xl font-bold text-purple-600")
-                        ui.label("Words").classes("text-lg font-semibold")
-                        ui.label("total").classes(f"text-sm {text_muted}")
+                with ui.row().classes("w-full gap-6 flex-wrap").style(ui_theme.stat_card_grid()):
+                    # Books stat
+                    with ui.card().classes("").style(ui_theme.card_styles(current_theme)):
+                        with ui.column().classes("items-center"):
+                            ui.icon("library_books", size="xl").style(f"color: {scheme['accent_primary']}; margin-bottom: 0.5rem;")
+                            ui.label(str(book_count)).style(
+                                f"font-family: 'Merriweather', Georgia, serif; font-size: 2.5rem; font-weight: 700; color: {scheme['accent_primary']}; line-height: 1.2;"
+                            )
+                            ui.label("Books").style(
+                                f"font-size: 0.875rem; font-weight: 500; color: {scheme['text_secondary']};"
+                            )
+                            ui.label("in your library").style(
+                                f"font-size: 0.75rem; color: {scheme['text_muted']};"
+                            )
 
-            # Quick actions
-            with ui.card().classes(f"mt-8 p-6 w-full {card_bg}"):
-                ui.label("Quick Actions").classes("text-xl font-semibold mb-4")
-                with ui.row().classes("gap-4 flex-wrap"):
-                    ui.button(
-                        "New Book",
-                        icon="add",
-                        on_click=lambda: ui.navigate.to("/books/new")
-                    ).props("color=primary")
-                    ui.button(
-                        "View All Books",
-                        icon="library_books",
-                        on_click=lambda: ui.navigate.to("/books")
+                    # Chapters stat
+                    with ui.card().classes("").style(ui_theme.card_styles(current_theme)):
+                        with ui.column().classes("items-center"):
+                            ui.icon("article", size="xl").style(f"color: {scheme['accent_green']}; margin-bottom: 0.5rem;")
+                            ui.label(str(chapter_count)).style(
+                                f"font-family: 'Merriweather', Georgia, serif; font-size: 2.5rem; font-weight: 700; color: {scheme['accent_green']}; line-height: 1.2;"
+                            )
+                            ui.label("Chapters").style(
+                                f"font-size: 0.875rem; font-weight: 500; color: {scheme['text_secondary']};"
+                            )
+                            ui.label("written").style(
+                                f"font-size: 0.75rem; color: {scheme['text_muted']};"
+                            )
+
+                    # Words stat
+                    with ui.card().classes("").style(ui_theme.card_styles(current_theme)):
+                        with ui.column().classes("items-center"):
+                            ui.icon("text_fields", size="xl").style(f"color: {scheme['accent_purple']}; margin-bottom: 0.5rem;")
+                            ui.label(f"{total_words:,}").style(
+                                f"font-family: 'Merriweather', Georgia, serif; font-size: 2.5rem; font-weight: 700; color: {scheme['accent_purple']}; line-height: 1.2;"
+                            )
+                            ui.label("Words").style(
+                                f"font-size: 0.875rem; font-weight: 500; color: {scheme['text_secondary']};"
+                            )
+                            ui.label("total").style(
+                                f"font-size: 0.75rem; color: {scheme['text_muted']};"
+                            )
+
+                # Quick actions
+                with ui.card().classes("mt-8 w-full").style(ui_theme.card_styles(current_theme)):
+                    ui.label("Quick Actions").style(
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; margin-bottom: 1rem;"
                     )
+                    with ui.row().classes("gap-4 flex-wrap"):
+                        with ui.button(
+                            "New Book",
+                            icon="add",
+                            on_click=lambda: ui.navigate.to("/books/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
+                            pass
+                        with ui.button(
+                            "View All Books",
+                            icon="library_books",
+                            on_click=lambda: ui.navigate.to("/books")
+                        ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                            pass
+                        with ui.button(
+                            "Voice Studio",
+                            icon="record_voice_over",
+                            on_click=lambda: ui.navigate.to("/voice-studio")
+                        ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                            pass
+
+                # Footer with quote
+                with ui.column().classes("w-full mt-12 items-center").style(f"padding: 2rem; border-top: 1px solid {scheme['border_light']};"):
+                    pass
 
     @ui.page("/books")
     def books_page(page: int = 1, search: str = "", status: str = ""):
-        """Books management page with search and pagination."""
+        """Books management page with search and pagination - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
@@ -519,110 +607,150 @@ def create_app():
         if user_id:
             current_theme = preferences.get_theme_for_user(user_id)
 
-        # Get theme-aware classes
-        text_primary = ui_theme.theme_classes(current_theme, "text_primary")
-        text_muted = ui_theme.theme_classes(current_theme, "text_muted")
-        card_bg = ui_theme.card_classes(current_theme)
-        input_cls = ui_theme.input_classes(current_theme)
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         # Header
         render_header()
 
-        # Books content
-        with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-            with ui.row().classes("justify-between items-center w-full mb-6"):
-                ui.label("Books").classes("text-3xl font-bold")
-                ui.button(
-                    "New Book",
-                    icon="add",
-                    on_click=lambda: ui.navigate.to("/books/new")
-                ).props("color=primary")
+        # Page background
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            # Search and filter bar
-            with ui.card().classes(f"w-full p-4 mb-6 {card_bg}"):
-                with ui.row().classes("w-full gap-4 items-center"):
-                    search_input = ui.input(
-                        label="Search",
-                        value=search or "",
-                        placeholder="Search books..."
-                    ).classes(f"flex-1 {input_cls}").props("outlined dense")
+        with ui.column().classes("w-full").style(page_style):
+            # Books content
+            with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+                with ui.row().classes("justify-between items-center w-full mb-6"):
+                    ui.label("Your Books").style(
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                    )
+                    with ui.button(
+                        "New Book",
+                        icon="add",
+                        on_click=lambda: ui.navigate.to("/books/new")
+                    ).classes("").style(ui_theme.button_primary_styles()):
+                        pass
 
-                    status_options = [
-                        {"label": "All Statuses", "value": None},
-                        {"label": "Draft", "value": "draft"},
-                        {"label": "In Progress", "value": "in_progress"},
-                        {"label": "Completed", "value": "completed"},
-                        {"label": "Archived", "value": "archived"},
-                    ]
-                    status_select = ui.select(
-                        label="Status",
-                        options=status_options,
-                        value=status if status else None,
-                    ).classes(f"w-48 {input_cls}").props("outlined dense")
+                # Search and filter bar - warm card style
+                with ui.card().classes("w-full mb-6").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1rem;"):
+                    with ui.row().classes("w-full gap-4 items-center"):
+                        search_input = ui.input(
+                            label="Search books...",
+                            value=search or "",
+                            placeholder="Type to search..."
+                        ).classes("flex-1").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 0.75rem 1rem;"
+                        )
 
-                    def apply_filters():
-                        params = {}
-                        if search_input.value:
-                            params["search"] = search_input.value
-                        if status_select.value:
-                            params["status"] = status_select.value
-                        params["page"] = "1"
-                        ui.navigate.to(f"/books?{urllib_parse.urlencode(params)}")
+                        status_options = [
+                            {"label": "All Statuses", "value": None},
+                            {"label": "Draft", "value": "draft"},
+                            {"label": "In Progress", "value": "in_progress"},
+                            {"label": "Completed", "value": "completed"},
+                            {"label": "Archived", "value": "archived"},
+                        ]
+                        status_select = ui.select(
+                            label="Status",
+                            options=status_options,
+                            value=status if status else None,
+                        ).classes("w-48").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    ui.button("Search", icon="search", on_click=apply_filters)
+                        def apply_filters():
+                            params = {}
+                            if search_input.value:
+                                params["search"] = search_input.value
+                            if status_select.value:
+                                params["status"] = status_select.value
+                            params["page"] = "1"
+                            ui.navigate.to(f"/books?{urllib_parse.urlencode(params)}")
 
-            # Get books
-            books, total = get_all_books(search=search, status_filter=status, page=page)
-            total_pages = (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+                        with ui.button(
+                            "Search",
+                            icon="search",
+                            on_click=apply_filters
+                        ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                            pass
 
-            # Books grid
-            if books:
-                with ui.row().classes("w-full gap-4 flex-wrap"):
-                    for book in books:
-                        status_colors = {
-                            "draft": "grey",
-                            "in_progress": "blue",
-                            "completed": "green",
-                            "archived": "grey-8",
-                        }
+                # Get books
+                books, total = get_all_books(search=search, status_filter=status, page=page)
+                total_pages = (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
 
-                        with ui.card().classes(f"w-full md:w-80 p-4 {card_bg}"):
-                            with ui.column().classes("w-full"):
-                                with ui.row().classes("w-full justify-between items-start"):
-                                    ui.label(book.title).classes(f"text-lg font-semibold {text_primary}")
-                                    ui.badge(
-                                        book.status.value.replace("_", " ").title(),
-                                        color=status_colors.get(book.status.value, "grey"),
-                                    )
+                # Books grid
+                if books:
+                    with ui.row().classes("w-full gap-6 flex-wrap").style(
+                        "display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;"
+                    ):
+                        for book in books:
+                            status_key = book.status.value
+                            status_color_map = {
+                                "draft": scheme["status_draft"],
+                                "in_progress": scheme["status_in_progress"],
+                                "completed": scheme["status_completed"],
+                                "archived": scheme["status_archived"],
+                            }
+                            status_color = status_color_map.get(status_key, scheme["status_draft"])
 
-                                if book.author:
-                                    ui.label(f"by {book.author}").classes(f"text-sm {text_muted}")
+                            # Book card - warm style
+                            with ui.card().classes("cursor-pointer").style(
+                                f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1.25rem; transition: all 0.25s ease; cursor: pointer;"
+                            ):
+                                with ui.column().classes("w-full"):
+                                    with ui.row().classes("w-full justify-between items-start"):
+                                        ui.label(book.title).style(
+                                            f"font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']}; margin-bottom: 0.25rem;"
+                                        )
+                                        # Status badge - warm style
+                                        ui.label(book.status.value.replace("_", " ").title()).style(
+                                            f"background-color: {status_color}22; color: {status_color}; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;"
+                                        )
 
-                                if book.description:
-                                    desc = book.description
-                                    if len(desc) > 100:
-                                        desc = desc[:100] + "..."
-                                    ui.label(desc).classes(f"text-sm {text_muted} mt-2")
+                                    if book.author:
+                                        ui.label(f"by {book.author}").style(
+                                            f"font-size: 0.875rem; color: {scheme['text_muted']}; margin-bottom: 0.75rem;"
+                                        )
 
-                                with ui.row().classes("mt-4 gap-4 items-center"):
-                                    ui.label(f"{len(book.chapters)} chapters").classes(f"text-xs {text_muted}")
-                                    ui.label(f"{book.word_count:,} words").classes(f"text-xs {text_muted}")
+                                    if book.description:
+                                        desc = book.description
+                                        if len(desc) > 100:
+                                            desc = desc[:100] + "..."
+                                        ui.label(desc).style(
+                                            f"font-family: 'Merriweather', Georgia, serif; font-size: 0.875rem; color: {scheme['text_secondary']}; line-height: 1.6; margin-bottom: 1rem;"
+                                        )
 
-                                with ui.row().classes("mt-4 gap-2"):
-                                    ui.button(
-                                        "View",
-                                        icon="visibility",
-                                        on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}")
-                                    ).props("flat dense size=sm")
-                                    ui.button(
-                                        "Edit",
-                                        icon="edit",
-                                        on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}/edit")
-                                    ).props("flat dense size=sm")
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=lambda b=book: confirm_delete_book(b.id)
-                                    ).props("flat dense size=sm color=negative")
+                                    with ui.row().classes("gap-4 items-center").style("margin-bottom: 1rem;"):
+                                        ui.label(f"{len(book.chapters)} chapters").style(f"font-size: 0.75rem; color: {scheme['text_muted']};")
+                                        ui.label(f"{book.word_count:,} words").style(f"font-size: 0.75rem; color: {scheme['text_muted']};")
+
+                                    with ui.row().classes("gap-2"):
+                                        with ui.button(
+                                            "View",
+                                            icon="visibility",
+                                            on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}")
+                                        ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                            pass
+                                        with ui.button(
+                                            "Edit",
+                                            icon="edit",
+                                            on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}/edit")
+                                        ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                            pass
+
+                # Empty state
+                else:
+                    with ui.card().classes("w-full").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 3rem; text-align: center;"):
+                        ui.icon("library_books", size="xl").style(f"color: {scheme['text_muted']}; margin-bottom: 1rem;")
+                        ui.label("No books yet").style(
+                            f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']};"
+                        )
+                        ui.label("Start your writing journey by creating your first book.").style(
+                            f"font-size: 0.875rem; color: {scheme['text_muted']}; margin-top: 0.5rem; margin-bottom: 1.5rem;"
+                        )
+                        with ui.button(
+                            "Create Your First Book",
+                            icon="add",
+                            on_click=lambda: ui.navigate.to("/books/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
+                            pass
 
                 # Pagination
                 if total_pages > 1:
@@ -633,13 +761,29 @@ def create_app():
                                 prev_params["search"] = search
                             if status:
                                 prev_params["status"] = status
-                            ui.button(
+                            with ui.button(
                                 "Previous",
                                 icon="chevron_left",
                                 on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(prev_params)}")
-                            ).props("flat")
+                            ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                pass
 
-                        ui.label(f"Page {page} of {total_pages}").classes("text-sm")
+                        ui.label(f"Page {page} of {total_pages}").style(
+                            f"font-size: 0.875rem; color: {scheme['text_muted']};"
+                        )
+
+                        if page < total_pages:
+                            next_params = {"page": str(page + 1)}
+                            if search:
+                                next_params["search"] = search
+                            if status:
+                                next_params["status"] = status
+                            with ui.button(
+                                "Next",
+                                icon="chevron_right",
+                                on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(next_params)}")
+                            ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                pass
 
                         if page < total_pages:
                             next_params = {"page": str(page + 1)}
@@ -652,15 +796,6 @@ def create_app():
                                 icon="chevron_right",
                                 on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(next_params)}")
                             ).props("flat")
-            else:
-                with ui.card().classes("w-full p-8"):
-                    ui.label("No books found").classes("text-xl text-gray-500 text-center")
-                    ui.label("Create your first book to get started!").classes("text-center mt-2")
-                    ui.button(
-                        "Create Book",
-                        icon="add",
-                        on_click=lambda: ui.navigate.to("/books/new")
-                    ).props("color=primary").classes("mt-4")
 
     def confirm_delete_book(book_id: int) -> None:
         """Show confirmation dialog for deleting a book."""
