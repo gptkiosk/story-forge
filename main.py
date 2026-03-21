@@ -493,10 +493,10 @@ def create_app():
         # Get random writers' quote
         quote = preferences.get_random_quote()
 
-        # Page background
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        # Page background with scrollable content
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Page content
             with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
                 # Welcome section
@@ -612,10 +612,10 @@ def create_app():
         # Header
         render_header()
 
-        # Page background
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        # Page background with scrollable content
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
             with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
                 with ui.row().classes("justify-between items-center w-full mb-6"):

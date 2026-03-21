@@ -111,7 +111,7 @@
 }
 
 /* =============================================================================
-   Base Styles
+   Base Styles - Lock Page Scrolling
    ============================================================================= */
 
 html, body {
@@ -122,6 +122,9 @@ html, body {
   padding: 0;
   min-height: 100vh;
   transition: background-color var(--transition-normal), color var(--transition-normal);
+  /* Lock page scrolling - only panes scroll when needed */
+  overflow: hidden;
+  height: 100%;
 }
 
 /* Custom Scrollbar */
@@ -400,7 +403,7 @@ p {
 }
 
 /* =============================================================================
-   Page Layout
+   Page Layout - Scrollable Panes
    ============================================================================= */
 
 .page-container {
@@ -421,6 +424,42 @@ p {
   font-size: 1rem;
   color: var(--text-muted);
   margin-bottom: 2rem;
+}
+
+/* Scrollable pane - only this container scrolls when content overflows */
+.scrollable-pane {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-medium) transparent;
+}
+
+.scrollable-pane::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollable-pane::-webkit-scrollbar-thumb {
+  background-color: var(--border-medium);
+  border-radius: 3px;
+}
+
+/* Main content area that takes remaining height */
+.main-content {
+  height: calc(100vh - 60px); /* 60px is header height */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* NiceGUI content wrapper */
+.nicegui-content {
+  height: 100vh !important;
+  overflow: hidden !important;
 }
 
 /* =============================================================================
