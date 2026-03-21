@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     DateTime,
+    Float,
     ForeignKey,
     Enum as SQLEnum,
 )
@@ -322,6 +323,48 @@ class User(Base):
     # Timestamps
     created_at = Column(DateTime, default=func.now(), nullable=False)
     last_login_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    preferences = relationship(
+        "UserPreference",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class UserPreference(Base):
+    """UserPreference model - stores UI preferences per user."""
+
+    __tablename__ = "user_preferences"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    
+    # Theme settings
+    theme = Column(String(20), default="light")  # "light" or "dark"
+    
+    # Dashboard preferences
+    dashboard_layout = Column(String(20), default="default")  # "default", "compact"
+    
+    # Chapter editor preferences
+    editor_font_size = Column(Integer, default=16)  # 12-24
+    editor_line_height = Column(Float, default=1.6)  # 1.2-2.0
+    
+    # Voice studio preferences
+    default_tts_provider = Column(String(20), default="minimax")
+    
+    # Timestamps
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="preferences")
 
 
 # =============================================================================

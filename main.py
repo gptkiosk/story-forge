@@ -13,6 +13,7 @@ from nicegui import ui
 import auth
 import tts
 import backup
+import preferences
 from db import (
     init_db,
     get_session,
@@ -255,6 +256,15 @@ def render_header():
     """Render the common header with navigation."""
     user_email = auth.get_session("user_email", "")
     user_avatar = auth.get_session("user_avatar", "")
+    user_id = auth.get_session("user_id")
+
+    # Get current theme
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
+
+    theme_icon = "dark_mode" if current_theme == preferences.Theme.LIGHT else "light_mode"
+    theme_label = "Dark Mode" if current_theme == preferences.Theme.LIGHT else "Light Mode"
 
     with ui.header().classes("bg-white shadow"):
         with ui.row().classes("w-full justify-between items-center px-4"):
@@ -271,6 +281,18 @@ def render_header():
                     on_click=lambda: ui.navigate.to("/books"),
                     icon="library_books"
                 ).props("flat dense").classes("text-gray-600")
+                ui.button(
+                    "Voice Studio",
+                    on_click=lambda: ui.navigate.to("/voice-studio"),
+                    icon="record_voice_over"
+                ).props("flat dense").classes("text-gray-600")
+
+                # Theme toggle button
+                ui.button(
+                    theme_label,
+                    icon=theme_icon,
+                    on_click=lambda: _toggle_theme(),
+                ).props("flat dense")
 
                 if user_avatar:
                     ui.avatar(source=user_avatar, size="sm")
@@ -282,6 +304,22 @@ def render_header():
                     on_click=lambda: ui.navigate.to("/logout"),
                     icon="logout"
                 ).props("flat dense color=negative")
+
+
+def _toggle_theme():
+    """Toggle the theme and refresh the page."""
+    user_id = auth.get_session("user_id")
+    if user_id:
+        new_theme, _ = preferences.toggle_theme(user_id)
+        # Refresh to apply new theme
+        ui.navigate.to(ui.route)
+    else:
+        # For non-authenticated users, use client-side toggle via JavaScript
+        ui.run_javascript("""
+            document.body.classList.toggle('dark');
+            const isDark = document.body.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        """)
 
 
 # =============================================================================
