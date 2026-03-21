@@ -815,74 +815,109 @@ def create_app():
 
     @ui.page("/books/new")
     def new_book_page():
-        """Create new book page."""
+        """Create new book page - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
+
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         render_header()
 
-        with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
-            ui.label("New Book").classes("text-2xl font-bold")
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            with ui.card().classes("w-full mt-4 p-6"):
-                with ui.column().classes("w-full gap-4"):
-                    title_input = ui.input(
-                        label="Title",
-                        placeholder="Enter book title"
-                    ).classes("w-full").props("outlined")
+        with ui.column().classes("w-full").style(page_style):
+            with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
+                ui.label("New Book").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
 
-                    author_input = ui.input(
-                        label="Author",
-                        placeholder="Enter author name"
-                    ).classes("w-full").props("outlined")
+                with ui.card().classes("w-full mt-4").style(ui_theme.card_styles(current_theme)):
+                    with ui.column().classes("w-full gap-4"):
+                        # Title input - themed
+                        title_input = ui.input(
+                            label="Title",
+                            placeholder="Enter book title"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    description_input = ui.textarea(
-                        label="Description",
-                        placeholder="Enter book description"
-                    ).classes("w-full").props("outlined")
+                        # Author input - themed
+                        author_input = ui.input(
+                            label="Author",
+                            placeholder="Enter author name"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    status_options = [
-                        {"label": "Draft", "value": "draft"},
-                        {"label": "In Progress", "value": "in_progress"},
-                        {"label": "Completed", "value": "completed"},
-                        {"label": "Archived", "value": "archived"},
-                    ]
-                    status_input = ui.select(
-                        label="Status",
-                        options=status_options,
-                        value="draft",
-                    ).classes("w-full").props("outlined")
+                        # Description textarea - themed
+                        description_input = ui.textarea(
+                            label="Description",
+                            placeholder="Enter book description..."
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; min-height: 120px;"
+                        )
 
-                    with ui.row().classes("mt-4 gap-2"):
-                        ui.button(
-                            "Cancel",
-                            on_click=lambda: ui.navigate.to("/books")
-                        ).props("flat")
+                        status_options = [
+                            {"label": "Draft", "value": "draft"},
+                            {"label": "In Progress", "value": "in_progress"},
+                            {"label": "Completed", "value": "completed"},
+                            {"label": "Archived", "value": "archived"},
+                        ]
+                        status_input = ui.select(
+                            label="Status",
+                            options=status_options,
+                            value="draft",
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                        def save_book():
-                            title = title_input.value.strip()
-                            if not title:
-                                ui.notify("Title is required", type="negative")
-                                return
+                        with ui.row().classes("mt-4 gap-3"):
+                            with ui.button(
+                                "Cancel",
+                                on_click=lambda: ui.navigate.to("/books")
+                            ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                pass
 
-                            new_book = create_book(
-                                title=title,
-                                author=author_input.value.strip() or None,
-                                description=description_input.value.strip() or None,
-                                status=status_input.value,
-                            )
-                            ui.notify("Book created successfully", type="positive")
-                            ui.navigate.to(f"/book/{new_book.id}")
+                            def save_book():
+                                title = title_input.value.strip()
+                                if not title:
+                                    ui.notify("Title is required", type="negative")
+                                    return
 
-                        ui.button("Save Book", on_click=save_book).props("color=primary")
+                                new_book = create_book(
+                                    title=title,
+                                    author=author_input.value.strip() or None,
+                                    description=description_input.value.strip() or None,
+                                    status=status_input.value,
+                                )
+                                ui.notify("Book created successfully", type="positive")
+                                ui.navigate.to(f"/book/{new_book.id}")
+
+                            with ui.button(
+                                "Save Book",
+                                on_click=save_book
+                            ).classes("").style(ui_theme.button_primary_styles()):
+                                pass
 
     @ui.page("/book/{book_id}")
     def book_detail_page(book_id: int):
-        """Book detail page with chapter management."""
+        """Book detail page with chapter management - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
+
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         book = get_book_by_id(book_id)
         if not book:
@@ -895,76 +930,103 @@ def create_app():
 
         render_header()
 
-        with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
-            # Book header
-            with ui.card().classes("w-full p-6"):
-                with ui.row().classes("w-full justify-between items-start"):
-                    with ui.column():
-                        ui.label(book.title).classes("text-3xl font-bold")
-                        if book.author:
-                            ui.label(f"by {book.author}").classes("text-lg text-gray-500")
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-                    status_colors = {
-                        "draft": "grey",
-                        "in_progress": "blue",
-                        "completed": "green",
-                        "archived": "grey-8",
-                    }
-                    ui.badge(
-                        book.status.value.replace("_", " ").title(),
-                        color=status_colors.get(book.status.value, "grey"),
+        with ui.column().classes("w-full").style(page_style):
+            with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
+                # Book header - warm card
+                with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                    with ui.row().classes("w-full justify-between items-start"):
+                        with ui.column():
+                            ui.label(book.title).style(
+                                f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                            )
+                            if book.author:
+                                ui.label(f"by {book.author}").style(
+                                    f"font-size: 1rem; color: {scheme['text_muted']};"
+                                )
+
+                        status_key = book.status.value
+                        status_color_map = {
+                            "draft": scheme["status_draft"],
+                            "in_progress": scheme["status_in_progress"],
+                            "completed": scheme["status_completed"],
+                            "archived": scheme["status_archived"],
+                        }
+                        status_color = status_color_map.get(status_key, scheme["status_draft"])
+                        ui.label(book.status.value.replace("_", " ").title()).style(
+                            f"background-color: {status_color}22; color: {status_color}; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500;"
+                        )
+
+                    if book.description:
+                        ui.label(book.description).style(
+                            f"font-family: 'Merriweather', Georgia, serif; margin-top: 1rem; color: {scheme['text_secondary']}; line-height: 1.7;"
+                        )
+
+                    with ui.row().classes("mt-4 gap-4"):
+                        ui.label(f"{len(chapters)} chapters").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                        ui.label(f"{book.word_count:,} words").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+
+                    with ui.row().classes("mt-4 gap-2"):
+                        with ui.button(
+                            "Edit Book",
+                            icon="edit",
+                            on_click=lambda: ui.navigate.to(f"/book/{book_id}/edit")
+                        ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                            pass
+                        with ui.button(
+                            "Delete",
+                            icon="delete",
+                            on_click=lambda: confirm_delete_book(book_id)
+                        ).classes("").style("background-color: transparent; color: #CA8B8B; border: none; border-radius: 9999px; padding: 0.5rem 1rem;"):
+                            pass
+
+                # Chapters section
+                with ui.row().classes("w-full justify-between items-center mt-8 mb-4"):
+                    ui.label("Chapters").style(
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 1.5rem; font-weight: 700; color: {scheme['text_primary']};"
                     )
+                    with ui.button(
+                        "Add Chapter",
+                        icon="add",
+                        on_click=lambda: ui.navigate.to(f"/book/{book_id}/chapter/new")
+                    ).classes("").style(ui_theme.button_primary_styles()):
+                        pass
 
-                if book.description:
-                    ui.label(book.description).classes("mt-4 text-gray-600")
+                if chapters:
+                    with ui.column().classes("w-full gap-3"):
+                        for i, chapter in enumerate(chapters, 1):
+                            with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                                with ui.row().classes("w-full justify-between items-center"):
+                                    with ui.column():
+                                        ui.label(f"Chapter {chapter.order}: {chapter.title}").style(
+                                            f"font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']};"
+                                        )
+                                        ui.label(f"{chapter.word_count:,} words").style(
+                                            f"font-size: 0.875rem; color: {scheme['text_muted']};"
+                                        )
 
-                with ui.row().classes("mt-4 gap-4"):
-                    ui.label(f"{len(chapters)} chapters").classes("text-sm")
-                    ui.label(f"{book.word_count:,} words").classes("text-sm")
+                                    with ui.row().classes("gap-2"):
+                                        with ui.button(
+                                            icon="edit",
+                                            on_click=lambda c=chapter: ui.navigate.to(f"/book/{book_id}/chapter/{c.id}/edit")
+                                        ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                            pass
+                                        with ui.button(
+                                            icon="delete",
+                                            on_click=lambda c=chapter: confirm_delete_chapter(c.id)
+                                        ).classes("").style("background-color: transparent; color: #CA8B8B; border: none;"):
+                                            pass
 
-                with ui.row().classes("mt-4 gap-2"):
-                    ui.button(
-                        "Edit Book",
-                        icon="edit",
-                        on_click=lambda: ui.navigate.to(f"/book/{book_id}/edit")
-                    ).props("flat")
-                    ui.button(
-                        "Delete",
-                        icon="delete",
-                        on_click=lambda: confirm_delete_book(book_id)
-                    ).props("flat color=negative")
-
-            # Chapters section
-            with ui.row().classes("w-full justify-between items-center mt-8 mb-4"):
-                ui.label("Chapters").classes("text-2xl font-bold")
-                ui.button(
-                    "Add Chapter",
-                    icon="add",
-                    on_click=lambda: ui.navigate.to(f"/book/{book_id}/chapter/new")
-                ).props("color=primary")
-
-            if chapters:
-                with ui.column().classes("w-full gap-2"):
-                    for i, chapter in enumerate(chapters, 1):
-                        with ui.card().classes("w-full p-4"):
-                            with ui.row().classes("w-full justify-between items-center"):
-                                with ui.column():
-                                    ui.label(f"Chapter {chapter.order}: {chapter.title}").classes("text-lg font-semibold")
-                                    ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
-
-                                with ui.row().classes("gap-2"):
-                                    ui.button(
-                                        icon="edit",
-                                        on_click=lambda c=chapter: ui.navigate.to(f"/book/{book_id}/chapter/{c.id}/edit")
-                                    ).props("flat dense")
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=lambda c=chapter: confirm_delete_chapter(book_id, c.id)
-                                    ).props("flat dense color=negative")
-            else:
-                with ui.card().classes("w-full p-8"):
-                    ui.label("No chapters yet").classes("text-lg text-gray-500 text-center")
-                    ui.label("Add your first chapter to start writing!").classes("text-center mt-2")
+                else:
+                    with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                        ui.label("No chapters yet").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
+                        with ui.button(
+                            "Add Your First Chapter",
+                            icon="add",
+                            on_click=lambda: ui.navigate.to(f"/book/{book_id}/chapter/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
+                            pass
 
     def confirm_delete_chapter(book_id: int, chapter_id: int) -> None:
         """Show confirmation dialog for deleting a chapter."""
@@ -985,10 +1047,17 @@ def create_app():
 
     @ui.page("/book/{book_id}/edit")
     def edit_book_page(book_id: int):
-        """Edit book page."""
+        """Edit book page - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
+
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         book = get_book_by_id(book_id)
         if not book:
@@ -998,56 +1067,70 @@ def create_app():
 
         render_header()
 
-        with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
-            ui.label("Edit Book").classes("text-2xl font-bold")
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            with ui.card().classes("w-full mt-4 p-6"):
-                with ui.column().classes("w-full gap-4"):
-                    title_input = ui.input(
-                        label="Title",
-                        value=book.title,
-                        placeholder="Enter book title"
-                    ).classes("w-full").props("outlined")
+        with ui.column().classes("w-full").style(page_style):
+            with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
+                ui.label("Edit Book").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
 
-                    author_input = ui.input(
-                        label="Author",
-                        value=book.author or "",
-                        placeholder="Enter author name"
-                    ).classes("w-full").props("outlined")
+                with ui.card().classes("w-full mt-4").style(ui_theme.card_styles(current_theme)):
+                    with ui.column().classes("w-full gap-4"):
+                        title_input = ui.input(
+                            label="Title",
+                            value=book.title,
+                            placeholder="Enter book title"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    description_input = ui.textarea(
-                        label="Description",
-                        value=book.description or "",
-                        placeholder="Enter book description"
-                    ).classes("w-full").props("outlined")
+                        author_input = ui.input(
+                            label="Author",
+                            value=book.author or "",
+                            placeholder="Enter author name"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    status_options = [
-                        {"label": "Draft", "value": "draft"},
-                        {"label": "In Progress", "value": "in_progress"},
-                        {"label": "Completed", "value": "completed"},
-                        {"label": "Archived", "value": "archived"},
-                    ]
-                    status_input = ui.select(
-                        label="Status",
-                        options=status_options,
-                        value=book.status.value,
-                    ).classes("w-full").props("outlined")
+                        description_input = ui.textarea(
+                            label="Description",
+                            value=book.description or "",
+                            placeholder="Enter book description..."
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; min-height: 120px;"
+                        )
 
-                    with ui.row().classes("mt-4 gap-2"):
-                        ui.button(
-                            "Cancel",
-                            on_click=lambda: ui.navigate.to(f"/book/{book_id}")
-                        ).props("flat")
+                        status_options = [
+                            {"label": "Draft", "value": "draft"},
+                            {"label": "In Progress", "value": "in_progress"},
+                            {"label": "Completed", "value": "completed"},
+                            {"label": "Archived", "value": "archived"},
+                        ]
+                        status_input = ui.select(
+                            label="Status",
+                            options=status_options,
+                            value=book.status.value,
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                        def save_book():
-                            title = title_input.value.strip()
-                            if not title:
-                                ui.notify("Title is required", type="negative")
-                                return
+                        with ui.row().classes("mt-4 gap-3"):
+                            with ui.button(
+                                "Cancel",
+                                on_click=lambda: ui.navigate.to(f"/book/{book_id}")
+                            ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                pass
 
-                            update_book(
-                                book_id,
-                                title=title,
+                            def save_book():
+                                title = title_input.value.strip()
+                                if not title:
+                                    ui.notify("Title is required", type="negative")
+                                    return
+
+                                update_book(
+                                    book_id,
+                                    title=title,
                                 author=author_input.value.strip() or None,
                                 description=description_input.value.strip() or None,
                                 status=status_input.value,
@@ -1059,10 +1142,17 @@ def create_app():
 
     @ui.page("/book/{book_id}/chapter/new")
     def new_chapter_page(book_id: int):
-        """Create new chapter page."""
+        """Create new chapter page - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
+
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         book = get_book_by_id(book_id)
         if not book:
@@ -1076,50 +1166,71 @@ def create_app():
 
         render_header()
 
-        with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
-            ui.label(f"New Chapter for {book.title}").classes("text-2xl font-bold")
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            with ui.card().classes("w-full mt-4 p-6"):
-                with ui.column().classes("w-full gap-4"):
-                    title_input = ui.input(
-                        label="Chapter Title",
-                        placeholder="Enter chapter title"
-                    ).classes("w-full").props("outlined")
+        with ui.column().classes("w-full").style(page_style):
+            with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
+                ui.label(f"New Chapter for {book.title}").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
 
-                    order_input = ui.number(
-                        label="Chapter Number",
-                        value=next_order,
-                    ).classes("w-full").props("outlined")
+                with ui.card().classes("w-full mt-4").style(ui_theme.card_styles(current_theme)):
+                    with ui.column().classes("w-full gap-4"):
+                        title_input = ui.input(
+                            label="Chapter Title",
+                            placeholder="Enter chapter title"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    with ui.row().classes("mt-4 gap-2"):
-                        ui.button(
-                            "Cancel",
-                            on_click=lambda: ui.navigate.to(f"/book/{book_id}")
-                        ).props("flat")
+                        order_input = ui.number(
+                            label="Chapter Number",
+                            value=next_order,
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                        def save_chapter():
-                            title = title_input.value.strip()
-                            if not title:
-                                ui.notify("Title is required", type="negative")
-                                return
+                        with ui.row().classes("mt-4 gap-3"):
+                            with ui.button(
+                                "Cancel",
+                                on_click=lambda: ui.navigate.to(f"/book/{book_id}")
+                            ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                                pass
 
-                            chapter = create_chapter(
-                                book_id=book_id,
-                                title=title,
-                                order=int(order_input.value),
-                            )
-                            recalculate_book_word_count(book_id)
-                            ui.notify("Chapter created successfully", type="positive")
-                            ui.navigate.to(f"/book/{book_id}/chapter/{chapter.id}/edit")
+                            def save_chapter():
+                                title = title_input.value.strip()
+                                if not title:
+                                    ui.notify("Title is required", type="negative")
+                                    return
 
-                        ui.button("Create Chapter", on_click=save_chapter).props("color=primary")
+                                chapter = create_chapter(
+                                    book_id=book_id,
+                                    title=title,
+                                    order=int(order_input.value),
+                                )
+                                recalculate_book_word_count(book_id)
+                                ui.notify("Chapter created successfully", type="positive")
+                                ui.navigate.to(f"/book/{book_id}/chapter/{chapter.id}/edit")
+
+                            with ui.button(
+                                "Create Chapter",
+                                on_click=save_chapter
+                            ).classes("").style(ui_theme.button_primary_styles()):
+                                pass
 
     @ui.page("/book/{book_id}/chapter/{chapter_id}/edit")
     def edit_chapter_page(book_id: int, chapter_id: int):
-        """Edit chapter page."""
+        """Edit chapter page - warm studio theme."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
+
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
         book = get_book_by_id(book_id)
         if not book:
@@ -1136,66 +1247,84 @@ def create_app():
 
         render_header()
 
-        with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.label(f"Edit Chapter: {chapter.title}").classes("text-2xl font-bold")
-                ui.button(
-                    "Back to Book",
-                    icon="arrow_back",
-                    on_click=lambda: ui.navigate.to(f"/book/{book_id}")
-                ).props("flat")
+        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-            with ui.card().classes("w-full mt-4 p-6"):
-                with ui.column().classes("w-full gap-4"):
-                    title_input = ui.input(
-                        label="Chapter Title",
-                        value=chapter.title,
-                        placeholder="Enter chapter title"
-                    ).classes("w-full").props("outlined")
+        with ui.column().classes("w-full").style(page_style):
+            with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
+                with ui.row().classes("w-full justify-between items-center"):
+                    ui.label(f"Edit Chapter: {chapter.title}").style(
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 1.75rem; font-weight: 700; color: {scheme['text_primary']};"
+                    )
+                    with ui.button(
+                        "Back to Book",
+                        icon="arrow_back",
+                        on_click=lambda: ui.navigate.to(f"/book/{book_id}")
+                    ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                        pass
 
-                    order_input = ui.number(
-                        label="Chapter Number",
-                        value=chapter.order,
-                    ).classes("w-full").props("outlined")
+                with ui.card().classes("w-full mt-4").style(ui_theme.card_styles(current_theme)):
+                    with ui.column().classes("w-full gap-4"):
+                        title_input = ui.input(
+                            label="Chapter Title",
+                            value=chapter.title,
+                            placeholder="Enter chapter title"
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    content_input = ui.textarea(
-                        label="Chapter Content",
-                        value=chapter.content or "",
-                        placeholder="Write your chapter content here...",
-                    ).classes("w-full").props("outlined")
+                        order_input = ui.number(
+                            label="Chapter Number",
+                            value=chapter.order,
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                        )
 
-                    # Word count display
-                    def update_word_count():
-                        content = content_input.value or ""
-                        words = len(content.split())
-                        word_count_label.set_text(f"Words: {words}")
+                        content_input = ui.textarea(
+                            label="Chapter Content",
+                            value=chapter.content or "",
+                            placeholder="Write your chapter content here...",
+                        ).classes("w-full").style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; min-height: 300px; font-family: 'Merriweather', Georgia, serif; line-height: 1.7;"
+                        )
 
-                    content_input.on_value_change(update_word_count)
-
-                    word_count_label = ui.label(f"Words: {chapter.word_count}").classes("text-sm text-gray-500")
-
-                    with ui.row().classes("mt-4 gap-2"):
-                        def save_chapter():
-                            title = title_input.value.strip()
-                            if not title:
-                                ui.notify("Title is required", type="negative")
-                                return
-
+                        # Word count display
+                        def update_word_count():
                             content = content_input.value or ""
-                            word_count = len(content.split())
+                            words = len(content.split())
+                            word_count_label.set_text(f"Words: {words}")
 
-                            update_chapter(
-                                chapter_id,
-                                title=title,
-                                content=content,
-                                order=int(order_input.value),
-                                word_count=word_count,
-                            )
-                            recalculate_book_word_count(book_id)
-                            ui.notify("Chapter updated successfully", type="positive")
-                            ui.navigate.to(f"/book/{book_id}")
+                        content_input.on_value_change(update_word_count)
 
-                        ui.button("Save Changes", on_click=save_chapter).props("color=primary")
+                        word_count_label = ui.label(f"Words: {chapter.word_count}").style(
+                            f"font-size: 0.875rem; color: {scheme['text_muted']};"
+                        )
+
+                        with ui.row().classes("mt-4 gap-3"):
+                            def save_chapter():
+                                title = title_input.value.strip()
+                                if not title:
+                                    ui.notify("Title is required", type="negative")
+                                    return
+
+                                content = content_input.value or ""
+                                word_count = len(content.split())
+
+                                update_chapter(
+                                    chapter_id,
+                                    title=title,
+                                    content=content,
+                                    order=int(order_input.value),
+                                    word_count=word_count,
+                                )
+                                recalculate_book_word_count(book_id)
+                                ui.notify("Chapter updated successfully", type="positive")
+                                ui.navigate.to(f"/book/{book_id}")
+
+                            with ui.button(
+                                "Save Changes",
+                                on_click=save_chapter
+                            ).classes("").style(ui_theme.button_primary_styles()):
+                                pass
 
 
 # =============================================================================
@@ -1243,64 +1372,90 @@ def render_voice_studio_header():
 
 @ui.page("/voice-studio")
 def voice_studio_page():
-    """Voice Studio - main page for TTS management."""
+    """Voice Studio - main page for TTS management - warm studio theme."""
     if not auth.is_authenticated():
         ui.navigate.to("/login")
         return
 
+    user_id = auth.get_session("user_id")
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
+
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
+
     render_voice_studio_header()
 
-    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-        ui.label("Voice Studio").classes("text-3xl font-bold")
-        ui.label("Text-to-speech generation for your chapters").classes("text-gray-500 mb-8")
+    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-        # Check which providers are configured
-        providers = tts.tts_manager.get_available_providers()
+    with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+            ui.label("Voice Studio").style(
+                f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+            )
+            ui.label("Text-to-speech generation for your chapters").style(
+                f"font-size: 1rem; color: {scheme['text_muted']}; margin-bottom: 2rem;"
+            )
 
-        if not providers:
-            with ui.card().classes("w-full p-8"):
-                ui.label("⚠️ No TTS Providers Configured").classes("text-xl font-bold")
-                ui.label("Please set up your MiniMax and/or ElevenLabs API keys in the .env file.").classes("text-gray-600 mt-2")
-                ui.label("MiniMax API Key: MINIMAX_API_KEY").classes("text-sm text-gray-500 mt-2")
-                ui.label("ElevenLabs API Key: ELEVENLABS_API_KEY").classes("text-sm text-gray-500")
-        else:
-            with ui.card().classes("w-full p-6 mb-6"):
-                ui.label("Available Providers").classes("text-lg font-semibold mb-4")
-                provider_names = ", ".join([p.value for p in providers])
-                ui.label(f"✓ {provider_names}").classes("text-green-600")
+            # Check which providers are configured
+            providers = tts.tts_manager.get_available_providers()
 
-            # List books for voice generation
-            ui.label("Select a Book to Narrate").classes("text-xl font-semibold mt-8 mb-4")
+            if not providers:
+                with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                    ui.label("No TTS Providers Configured").style(
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']};"
+                    )
+                    ui.label("Please set up your MiniMax and/or ElevenLabs API keys in the .env file.").style(
+                        f"font-size: 0.875rem; color: {scheme['text_muted']}; margin-top: 0.5rem;"
+                    )
 
-            books = get_all_books(page=1, search="", status_filter="")[0]
-
-            if not books:
-                with ui.card().classes("w-full p-8"):
-                    ui.label("No books found").classes("text-gray-500")
-                    ui.button(
-                        "Create Your First Book",
-                        icon="add",
-                        on_click=lambda: ui.navigate.to("/books/new")
-                    ).props("color=primary").classes("mt-4")
             else:
-                with ui.column().classes("w-full gap-4"):
-                    for book in books:
-                        with ui.card().classes("w-full p-4"):
-                            with ui.row().classes("w-full justify-between items-center"):
-                                with ui.column():
-                                    ui.label(book.title).classes("text-lg font-semibold")
-                                    ui.label(f"{len(book.chapters)} chapters • {book.word_count:,} words").classes("text-sm text-gray-500")
-                                with ui.row().classes("gap-2"):
-                                    ui.button(
+                with ui.card().classes("w-full mb-6").style(ui_theme.card_styles(current_theme)):
+                    ui.label("Available Providers").style(
+                        f"font-size: 1rem; font-weight: 600; color: {scheme['text_primary']}; margin-bottom: 0.5rem;"
+                    )
+                    provider_names = ", ".join([p.value for p in providers])
+                    ui.label(f"✓ {provider_names}").style(f"font-size: 0.875rem; color: {scheme['accent_green']};")
+
+                # List books for voice generation
+                ui.label("Select a Book to Narrate").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; margin-top: 2rem; margin-bottom: 1rem;"
+                )
+
+                books = get_all_books(page=1, search="", status_filter="")[0]
+
+                if not books:
+                    with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                        ui.label("No books found").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
+                        with ui.button(
+                            "Create Your First Book",
+                            icon="add",
+                            on_click=lambda: ui.navigate.to("/books/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
+                            pass
+                else:
+                    with ui.column().classes("w-full gap-4"):
+                        for book in books:
+                            with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                                with ui.row().classes("w-full justify-between items-center"):
+                                    with ui.column():
+                                        ui.label(book.title).style(
+                                            f"font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']};"
+                                        )
+                                        ui.label(f"{len(book.chapters)} chapters • {book.word_count:,} words").style(
+                                            f"font-size: 0.875rem; color: {scheme['text_muted']};"
+                                        )
+                                    with ui.button(
                                         "Narrate Book",
                                         icon="play_arrow",
                                         on_click=lambda b=book: ui.navigate.to(f"/voice-studio/book/{b.id}")
-                                    ).props("color=primary")
+                                    ).classes("").style(ui_theme.button_primary_styles()):
+                                        pass
 
 
 @ui.page("/voice-studio/book/{book_id}")
 def voice_studio_book_page(book_id: int):
-    """Voice Studio - per-book voice management."""
+    """Voice Studio - per-book voice management - warm studio theme."""
     if not auth.is_authenticated():
         ui.navigate.to("/login")
         return
