@@ -550,6 +550,14 @@ def save_audio_file(
     filename = f"book_{book_id}_chapter_{chapter_id}_{provider.value}.{format}"
     filepath = AUDIO_DIR / filename
     filepath.write_bytes(audio_data)
+
+    # Try to backup to GCS (async-safe, won't block)
+    try:
+        import backup
+        backup.backup_audio_to_gcs(filepath, book_id, chapter_id)
+    except Exception:
+        pass  # GCS backup is best-effort, don't fail if it doesn't work
+
     return str(filepath)
 
 
