@@ -270,7 +270,12 @@ def render_header():
 
     with ui.header().classes("bg-white shadow"):
         with ui.row().classes("w-full justify-between items-center px-4"):
-            ui.label(APP_TITLE).classes("text-xl font-bold text-gray-800")
+            with ui.row().classes("items-center gap-3"):
+                ui.label(APP_TITLE).classes("text-xl font-bold text-gray-800")
+
+                # Dev mode indicator
+                if auth.is_dev_mode():
+                    ui.badge("DEV MODE", color="orange").classes("text-xs font-bold")
 
             with ui.row().classes("items-center gap-2"):
                 ui.button(
@@ -345,6 +350,12 @@ def create_app():
     def login_page():
         """Login page with Google OAuth."""
         if auth.is_authenticated():
+            ui.navigate.to("/dashboard")
+            return
+
+        # Dev mode: auto-login as dev user
+        if auth.is_dev_mode():
+            auth.login_dev_user()
             ui.navigate.to("/dashboard")
             return
 

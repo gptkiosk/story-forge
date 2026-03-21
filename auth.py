@@ -32,6 +32,14 @@ def _get_user_class():
 # Auth toggle — set AUTH_ENABLED=1 in .env to enforce Google OAuth login
 AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "").lower() in ("1", "true", "yes")
 
+# Dev mode toggle — set DEV_MODE=1 in .env to bypass Google OAuth with a dev user
+DEV_MODE = os.environ.get("DEV_MODE", "").lower() in ("1", "true", "yes")
+
+# Dev user configuration (used when DEV_MODE=1)
+DEV_USER_EMAIL = os.environ.get("DEV_USER_EMAIL", "dev@story-forge.local")
+DEV_USER_NAME = os.environ.get("DEV_USER_NAME", "Dev User")
+DEV_USER_ID = os.environ.get("DEV_USER_ID", "dev-user-001")
+
 # OAuth settings
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
@@ -236,9 +244,90 @@ def clear_session() -> None:
 
 def is_authenticated() -> bool:
     """Check if user is authenticated. Auth is bypassed when AUTH_ENABLED is not set."""
-    if not AUTH_ENABLED:
-        return True
+    if not AUTH_ENABLED or DEV_MODE:
+        # In dev mode, check if dev user session is set
+        return get_session("user_id") is not None
     return get_session("user_id") is not None
+
+
+def is_dev_mode() -> bool:
+    """Check if dev mode is enabled."""
+    return DEV_MODE
+
+
+def ensure_dev_user() -> Optional[dict]:
+    """
+    Ensure dev user exists in database.
+    Used when DEV_MODE=1 to create a local user for testing.
+
+    Returns:
+        dict with dev user info, or None if not in dev mode
+    """
+    if not DEV_MODE:
+        return None
+
+    from db import get_session, User
+    db = get_session()
+    try:
+        # Find or create dev user
+        user = db.query(User).filter(User.email == DEV_USER_EMAIL).first()
+
+        if not user:
+            user = User(
+                provider="dev",
+                provider_user_id=DEV_USER_ID,
+                email=DEV_USER_EMAIL,
+                name=DEV_USER_NAME,
+                internal_user_id=DEV_USER_ID,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "provider": user.provider,
+        }
+    finally:
+        db.close()
+
+
+def login_dev_user() -> bool:
+    """
+    Set up session for dev user.
+    Call this when in dev mode to bypass OAuth.
+
+    Returns:
+        True if dev user was logged in, False otherwise
+    """
+    if not DEV_MODE:
+        return False
+
+    dev_user = ensure_dev_user()
+    if dev_user:
+        set_session("user_id", dev_user["id"])
+        set_session("user_email", dev_user["email"])
+        set_session("user_name", dev_user["name"])
+        set_session("user_provider", dev_user["provider"])
+        return True
+
+    return False
+
+
+def dev_mode_toggle(enabled: bool) -> None:
+    """
+    Toggle dev mode at runtime.
+
+    Args:
+        enabled: True to enable dev mode, False to disable
+    """
+    global DEV_MODE
+    DEV_MODE = enabled
+    if not enabled:
+        # Clear session when disabling dev mode
+        clear_session()
 
 
 # =============================================================================
