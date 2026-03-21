@@ -1,91 +1,93 @@
 # Story Forge
 
-A self-publishing dashboard for managing the entire workflow from outline to audiobook generation.
+A self-publishing dashboard for managing books from outline to audiobook generation.
 
 ## Features
 
-- 📚 **Book Management** - Organize your book projects with chapters
-- ✍️ **Chapter Editor** - Write and edit chapters with rich text
-- 🎙️ **Audiobook Generation** - Convert chapters to audio using MiniMax TTS
-- 🔐 **Google OAuth** - Secure single-sign-on authentication
-- ☁️ **Cloud Backup** - Automatic backup to Google Cloud Storage
+- 📚 **Book Management** — Create, edit, and organize book projects with chapters
+- ✍️ **Chapter Editor** — Write chapters with word count tracking
+- 🔐 **Google OAuth** — Secure single-sign-on authentication
+- 🎙️ **Audiobook Generation** — Convert chapters to audio using MiniMax TTS (scaffolded)
+- ☁️ **Cloud Backup** — GCS backup infrastructure (scaffolded for future use)
 
 ## Tech Stack
 
-- **Backend**: Python, FastAPI
-- **Frontend**: NiceGUI (Python-native UI framework)
+- **UI Framework**: NiceGUI (Python-native)
 - **Database**: SQLite (WAL mode)
-- **TTS**: MiniMax API (speech-02-hd with voice cloning)
 - **Auth**: Google OAuth 2.0
-- **Infrastructure**: Terraform (for future Cloud Run deployment)
+- **TTS**: MiniMax API (scaffolded)
+- **Infrastructure**: Terraform + Cloud Run (scaffolded for future deployment)
 
-## Getting Started
+## Running Locally
 
 ### Prerequisites
 
 - Python 3.12+
-- Google Cloud Platform account (for OAuth and GCS)
-- MiniMax API account (for TTS)
+- Google Cloud Platform account (for OAuth)
+- MiniMax API account (for TTS, optional)
 
-### Installation
+### Quick Start
 
-1. Clone the repository:
 ```bash
+# Clone and enter directory
 git clone https://github.com/gptkiosk/story-forge.git
 cd story-forge
-```
 
-2. Create a virtual environment:
-```bash
+# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+source venv/bin/activate
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-4. Configure environment:
-```bash
-cp .env.example .env
-# Edit .env with your credentials
-```
+# Set environment variables
+export GOOGLE_CLIENT_ID="your-client-id"
+export GOOGLE_CLIENT_SECRET="your-client-secret"
+export PORT=8080
 
-5. Run the application:
-```bash
+# Run
 python main.py
 ```
 
-The app will be available at `http://localhost:8080`
+Visit `http://localhost:8080` to use the app.
+
+### System Service (Mac Mini)
+
+Run as a launchd service for 24/7 availability:
+
+```bash
+# Copy the service definition
+cp com.storyforge.plist ~/Library/LaunchAgents/
+
+# Edit the plist with your environment variables, then:
+launchctl load ~/Library/LaunchAgents/com.storyforge.plist
+launchctl start com.storyforge
+```
 
 ## Project Structure
 
 ```
 story-forge/
-├── main.py              # Application entry point
-├── db.py                # Database setup and queries
-├── tts.py               # MiniMax TTS API client
-├── auth.py              # Google OAuth authentication
-├── backup.py            # GCS backup functions
-├── models/              # SQLAlchemy ORM models
-├── ui/                  # NiceGUI pages and components
+├── main.py              # NiceGUI app entry point
+├── db.py                # Database models, session, encryption
+├── auth.py              # Google OAuth handlers
+├── tts.py               # MiniMax TTS client (scaffolded)
+├── backup.py            # GCS backup (scaffolded)
 ├── requirements.txt     # Python dependencies
-└── .github/workflows/   # CI/CD pipelines
+├── data/                 # SQLite DB and uploads (gitignored)
+└── tests/               # Test suite
 ```
 
 ## Development
 
-### Running Tests
 ```bash
+# Run tests
 pytest tests/ -v
-```
 
-### Linting
-```bash
+# Lint
 ruff check . --fix
 ```
 
-## License
+## CI/CD
 
-MIT License
+GitHub Actions runs lint + tests on every push. Docker/GCP deployment is scaffolded but disabled — the app is designed to run as a local system service for now.
