@@ -5,6 +5,8 @@ Main entry point for the NiceGUI application.
 
 import os
 import asyncio
+import sqlalchemy
+from sqlalchemy.orm import joinedload
 from pathlib import Path
 from urllib import parse as urllib_parse
 from datetime import datetime
@@ -65,7 +67,7 @@ def get_total_word_count() -> int:
     db = get_session()
     try:
         total = db.query(Book).with_entities(
-            db.func.sum(Book.word_count)
+            sqlalchemy.func.sum(Book.word_count)
         ).scalar()
         return total or 0
     finally:
@@ -95,7 +97,7 @@ def get_all_books(search: str = "", status_filter: str = "", page: int = 1) -> t
 
         total = query.count()
         offset = (page - 1) * ITEMS_PER_PAGE
-        books = query.order_by(Book.updated_at.desc()).offset(offset).limit(ITEMS_PER_PAGE).all()
+        books = query.options(joinedload(Book.chapters)).order_by(Book.updated_at.desc()).offset(offset).limit(ITEMS_PER_PAGE).all()
 
         return books, total
     finally:
@@ -297,7 +299,7 @@ def render_header():
                 if user_avatar:
                     ui.avatar(source=user_avatar, size="sm")
                 else:
-                    ui.avatar(text=user_email[0].upper() if user_email else "?", size="sm")
+                    ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm")
 
                 ui.button(
                     "Logout",
@@ -370,12 +372,8 @@ def create_app():
                 ).classes("text-xs text-gray-400 text-center mt-4")
 
     @ui.page("/auth/callback")
-    def auth_callback_page():
+    def auth_callback_page(code: str = None, state: str = None, error: str = None):
         """OAuth callback handler."""
-        query = ui.query_params
-        code = query.get("code")
-        state = query.get("state")
-        error = query.get("error")
 
         if error:
             ui.notify(f"Authentication error: {error}", type="negative")
@@ -476,17 +474,16 @@ def create_app():
                     )
 
     @ui.page("/books")
-    def books_page():
+    def books_page(page: int = 1, search: str = "", status: str = ""):
         """Books management page with search and pagination."""
         if not auth.is_authenticated():
             ui.navigate.to("/login")
             return
 
         # Get query params for pagination and filtering
-        query_params = ui.query_params
-        page = int(query_params.get("page", "1"))
-        search = query_params.get("search", "")
-        status = query_params.get("status", "")
+        page = int(page) if page else 1
+        search = search or ""
+        status = status or ""
 
         # Header
         render_header()
@@ -506,12 +503,12 @@ def create_app():
                 with ui.row().classes("w-full gap-4 items-center"):
                     search_input = ui.input(
                         label="Search",
-                        value=search,
+                        value=search or "",
                         placeholder="Search books..."
                     ).classes("flex-1").props("outlined dense")
 
                     status_options = [
-                        {"label": "All Statuses", "value": ""},
+                        {"label": "All Statuses", "value": None},
                         {"label": "Draft", "value": "draft"},
                         {"label": "In Progress", "value": "in_progress"},
                         {"label": "Completed", "value": "completed"},
@@ -520,7 +517,7 @@ def create_app():
                     status_select = ui.select(
                         label="Status",
                         options=status_options,
-                        value=status,
+                        value=status if status else None,
                     ).classes("w-48").props("outlined dense")
 
                     def apply_filters():
@@ -554,7 +551,7 @@ def create_app():
                                 with ui.row().classes("w-full justify-between items-start"):
                                     ui.label(book.title).classes("text-lg font-semibold")
                                     ui.badge(
-                                        label=book.status.value.replace("_", " ").title(),
+                                        book.status.value.replace("_", " ").title(),
                                         color=status_colors.get(book.status.value, "grey"),
                                     )
 
@@ -739,7 +736,7 @@ def create_app():
                         "archived": "grey-8",
                     }
                     ui.badge(
-                        label=book.status.value.replace("_", " ").title(),
+                        book.status.value.replace("_", " ").title(),
                         color=status_colors.get(book.status.value, "grey"),
                     )
 

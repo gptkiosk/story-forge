@@ -29,6 +29,9 @@ def _get_user_class():
 # Configuration
 # =============================================================================
 
+# Auth toggle — set AUTH_ENABLED=1 in .env to enforce Google OAuth login
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "").lower() in ("1", "true", "yes")
+
 # OAuth settings
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
@@ -232,7 +235,9 @@ def clear_session() -> None:
 
 
 def is_authenticated() -> bool:
-    """Check if user is authenticated."""
+    """Check if user is authenticated. Auth is bypassed when AUTH_ENABLED is not set."""
+    if not AUTH_ENABLED:
+        return True
     return get_session("user_id") is not None
 
 
