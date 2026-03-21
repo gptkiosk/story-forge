@@ -1340,34 +1340,62 @@ def get_voice_for_provider(character: CharacterVoice, provider: TTSProviderType)
 
 
 def render_voice_studio_header():
-    """Render the Voice Studio header with navigation."""
-    with ui.header().classes("bg-blue-900 text-white"):
-        with ui.row().classes("w-full items-center justify-between px-6"):
-            ui.label("🔊 Voice Studio").classes("text-xl font-bold")
-            with ui.row().classes("gap-4"):
+    """Render the Voice Studio header with navigation - theme-aware."""
+    user_email = auth.get_session("user_email", "")
+    user_avatar = auth.get_session("user_avatar", "")
+    user_id = auth.get_session("user_id")
+
+    # Get current theme
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
+
+    theme_icon = "dark_mode" if current_theme == preferences.Theme.LIGHT else "light_mode"
+    theme_label = "Dark Mode" if current_theme == preferences.Theme.LIGHT else "Light Mode"
+
+    # Get theme styles
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
+
+    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 1.5rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
+
+    with ui.header().classes("").style(header_style):
+        with ui.row().classes("w-full justify-between items-center"):
+            with ui.row().classes("items-center gap-4"):
+                ui.label("🔊 Voice Studio").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
+
+            with ui.row().classes("items-center gap-1"):
+                nav_buttons = [
+                    ("Dashboard", "dashboard", "/dashboard"),
+                    ("Books", "library_books", "/books"),
+                    ("Voice Studio", "record_voice_over", "/voice-studio"),
+                    ("Backups", "backup", "/backups"),
+                ]
+
+                for label, icon, route in nav_buttons:
+                    ui.button(
+                        label,
+                        icon=icon,
+                        on_click=lambda r=route: ui.navigate.to(r)
+                    ).props("flat dense").style(
+                        f"background-color: transparent; color: {scheme['text_secondary']}; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
+                    )
+
+                ui.separator().props("vertical").style(f"height: 24px; background-color: {scheme['border_light']}; margin: 0 0.5rem;")
+
                 ui.button(
-                    "Dashboard",
-                    icon="dashboard",
-                    on_click=lambda: ui.navigate.to("/dashboard")
-                ).props("flat color=white")
-                ui.button(
-                    "Books",
-                    icon="library_books",
-                    on_click=lambda: ui.navigate.to("/books")
-                ).props("flat color=white")
-                ui.button(
-                    "Voice Studio",
-                    icon="record_voice_over",
-                    on_click=lambda: ui.navigate.to("/voice-studio")
-                ).props("flat color=white")
-                if auth.is_authenticated():
-                    user_name = auth.get_session("user_name", "User")
-                    with ui.row().classes("items-center gap-2"):
-                        ui.label(f"👤 {user_name}").classes("text-sm")
-                        ui.button(
-                            icon="logout",
-                            on_click=lambda: ui.navigate.to("/logout")
-                        ).props("flat color=white round")
+                    theme_label,
+                    icon=theme_icon,
+                    on_click=lambda: _toggle_theme()
+                ).props("flat dense").style(
+                    f"background-color: {scheme['bg_secondary']}; color: {scheme['text_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
+                )
+
+                if user_avatar:
+                    ui.avatar(source=user_avatar, size="sm").style("margin-left: 0.5rem;")
+                else:
+                    ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm").style("margin-left: 0.5rem;")
 
 
 @ui.page("/voice-studio")
