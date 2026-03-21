@@ -16,6 +16,7 @@ import auth
 import tts
 import backup
 import preferences
+import ui_theme
 from db import (
     init_db,
     get_session,
@@ -268,10 +269,15 @@ def render_header():
     theme_icon = "dark_mode" if current_theme == preferences.Theme.LIGHT else "light_mode"
     theme_label = "Dark Mode" if current_theme == preferences.Theme.LIGHT else "Light Mode"
 
-    with ui.header().classes("bg-white shadow"):
+    # Get theme-aware classes
+    header_bg = ui_theme.header_classes(current_theme)
+    header_text = ui_theme.theme_classes(current_theme, "text_primary")
+    button_text = ui_theme.button_text_classes(current_theme)
+
+    with ui.header().classes(f"{header_bg} shadow"):
         with ui.row().classes("w-full justify-between items-center px-4"):
             with ui.row().classes("items-center gap-3"):
-                ui.label(APP_TITLE).classes("text-xl font-bold text-gray-800")
+                ui.label(APP_TITLE).classes(f"text-xl font-bold {header_text}")
 
                 # Dev mode indicator
                 if auth.is_dev_mode():
@@ -282,24 +288,24 @@ def render_header():
                     "Dashboard",
                     on_click=lambda: ui.navigate.to("/dashboard"),
                     icon="dashboard"
-                ).props("flat dense").classes("text-gray-600")
+                ).props("flat dense").classes(button_text)
                 ui.button(
                     "Books",
                     on_click=lambda: ui.navigate.to("/books"),
                     icon="library_books"
-                ).props("flat dense").classes("text-gray-600")
+                ).props("flat dense").classes(button_text)
                 ui.button(
                     "Voice Studio",
                     on_click=lambda: ui.navigate.to("/voice-studio"),
                     icon="record_voice_over"
-                ).props("flat dense").classes("text-gray-600")
+                ).props("flat dense").classes(button_text)
 
                 # Theme toggle button
                 ui.button(
                     theme_label,
                     icon=theme_icon,
                     on_click=lambda: _toggle_theme(),
-                ).props("flat dense")
+                ).props("flat dense").classes(button_text)
 
                 if user_avatar:
                     ui.avatar(source=user_avatar, size="sm")
@@ -433,14 +439,25 @@ def create_app():
             return
 
         user_name = auth.get_session("user_name", "User")
+        user_id = auth.get_session("user_id")
+
+        # Get current theme
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
 
         # Header
         render_header()
 
+        # Get theme-aware classes
+        text_primary = ui_theme.theme_classes(current_theme, "text_primary")
+        text_muted = ui_theme.theme_classes(current_theme, "text_muted")
+        card_bg = ui_theme.card_classes(current_theme)
+
         # Dashboard content
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-            ui.label(f"Welcome back, {user_name}!").classes("text-3xl font-bold text-gray-800")
-            ui.label("Your publishing overview").classes("text-gray-500 mb-8")
+            ui.label(f"Welcome back, {user_name}!").classes(f"text-3xl font-bold {text_primary}")
+            ui.label("Your publishing overview").classes(f"{text_muted} mb-8")
 
             # Stats cards
             book_count = get_book_count()
@@ -448,29 +465,29 @@ def create_app():
             total_words = get_total_word_count()
 
             with ui.row().classes("w-full gap-4 flex-wrap"):
-                with ui.card().classes("flex-1 min-w-48 p-6"):
+                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
                     with ui.column().classes("items-center"):
                         ui.icon("library_books", size="xl", color="blue").classes("mb-2")
                         ui.label(str(book_count)).classes("text-4xl font-bold text-blue-600")
                         ui.label("Books").classes("text-lg font-semibold")
-                        ui.label("in library").classes("text-sm text-gray-500")
+                        ui.label("in library").classes(f"text-sm {text_muted}")
 
-                with ui.card().classes("flex-1 min-w-48 p-6"):
+                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
                     with ui.column().classes("items-center"):
                         ui.icon("article", size="xl", color="green").classes("mb-2")
                         ui.label(str(chapter_count)).classes("text-4xl font-bold text-green-600")
                         ui.label("Chapters").classes("text-lg font-semibold")
-                        ui.label("written").classes("text-sm text-gray-500")
+                        ui.label("written").classes(f"text-sm {text_muted}")
 
-                with ui.card().classes("flex-1 min-w-48 p-6"):
+                with ui.card().classes(f"flex-1 min-w-48 p-6 {card_bg}"):
                     with ui.column().classes("items-center"):
                         ui.icon("text_fields", size="xl", color="purple").classes("mb-2")
                         ui.label(f"{total_words:,}").classes("text-4xl font-bold text-purple-600")
                         ui.label("Words").classes("text-lg font-semibold")
-                        ui.label("total").classes("text-sm text-gray-500")
+                        ui.label("total").classes(f"text-sm {text_muted}")
 
             # Quick actions
-            with ui.card().classes("mt-8 p-6 w-full"):
+            with ui.card().classes(f"mt-8 p-6 w-full {card_bg}"):
                 ui.label("Quick Actions").classes("text-xl font-semibold mb-4")
                 with ui.row().classes("gap-4 flex-wrap"):
                     ui.button(
@@ -496,6 +513,18 @@ def create_app():
         search = search or ""
         status = status or ""
 
+        # Get current theme
+        user_id = auth.get_session("user_id")
+        current_theme = preferences.Theme.LIGHT
+        if user_id:
+            current_theme = preferences.get_theme_for_user(user_id)
+
+        # Get theme-aware classes
+        text_primary = ui_theme.theme_classes(current_theme, "text_primary")
+        text_muted = ui_theme.theme_classes(current_theme, "text_muted")
+        card_bg = ui_theme.card_classes(current_theme)
+        input_cls = ui_theme.input_classes(current_theme)
+
         # Header
         render_header()
 
@@ -510,13 +539,13 @@ def create_app():
                 ).props("color=primary")
 
             # Search and filter bar
-            with ui.card().classes("w-full p-4 mb-6"):
+            with ui.card().classes(f"w-full p-4 mb-6 {card_bg}"):
                 with ui.row().classes("w-full gap-4 items-center"):
                     search_input = ui.input(
                         label="Search",
                         value=search or "",
                         placeholder="Search books..."
-                    ).classes("flex-1").props("outlined dense")
+                    ).classes(f"flex-1 {input_cls}").props("outlined dense")
 
                     status_options = [
                         {"label": "All Statuses", "value": None},
@@ -529,7 +558,7 @@ def create_app():
                         label="Status",
                         options=status_options,
                         value=status if status else None,
-                    ).classes("w-48").props("outlined dense")
+                    ).classes(f"w-48 {input_cls}").props("outlined dense")
 
                     def apply_filters():
                         params = {}
@@ -557,27 +586,27 @@ def create_app():
                             "archived": "grey-8",
                         }
 
-                        with ui.card().classes("w-full md:w-80 p-4"):
+                        with ui.card().classes(f"w-full md:w-80 p-4 {card_bg}"):
                             with ui.column().classes("w-full"):
                                 with ui.row().classes("w-full justify-between items-start"):
-                                    ui.label(book.title).classes("text-lg font-semibold")
+                                    ui.label(book.title).classes(f"text-lg font-semibold {text_primary}")
                                     ui.badge(
                                         book.status.value.replace("_", " ").title(),
                                         color=status_colors.get(book.status.value, "grey"),
                                     )
 
                                 if book.author:
-                                    ui.label(f"by {book.author}").classes("text-sm text-gray-500")
+                                    ui.label(f"by {book.author}").classes(f"text-sm {text_muted}")
 
                                 if book.description:
                                     desc = book.description
                                     if len(desc) > 100:
                                         desc = desc[:100] + "..."
-                                    ui.label(desc).classes("text-sm text-gray-600 mt-2")
+                                    ui.label(desc).classes(f"text-sm {text_muted} mt-2")
 
                                 with ui.row().classes("mt-4 gap-4 items-center"):
-                                    ui.label(f"{len(book.chapters)} chapters").classes("text-xs text-gray-500")
-                                    ui.label(f"{book.word_count:,} words").classes("text-xs text-gray-500")
+                                    ui.label(f"{len(book.chapters)} chapters").classes(f"text-xs {text_muted}")
+                                    ui.label(f"{book.word_count:,} words").classes(f"text-xs {text_muted}")
 
                                 with ui.row().classes("mt-4 gap-2"):
                                     ui.button(
