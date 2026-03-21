@@ -1460,6 +1460,13 @@ def voice_studio_book_page(book_id: int):
         ui.navigate.to("/login")
         return
 
+    user_id = auth.get_session("user_id")
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
+
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
+
     book = get_book_by_id(book_id)
     if not book:
         ui.notify("Book not found", type="negative")
@@ -1468,89 +1475,99 @@ def voice_studio_book_page(book_id: int):
 
     render_voice_studio_header()
 
-    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-        with ui.row().classes("w-full justify-between items-center"):
-            ui.label(f"Voice Studio: {book.title}").classes("text-2xl font-bold")
-            ui.button(
-                "← Back to Voice Studio",
-                icon="arrow_back",
-                on_click=lambda: ui.navigate.to("/voice-studio")
-            ).props("flat")
+    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
 
-        # Provider selection
-        providers = tts.tts_manager.get_available_providers()
+    with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label(f"Voice Studio: {book.title}").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.75rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
+                with ui.button(
+                    "← Back to Voice Studio",
+                    icon="arrow_back",
+                    on_click=lambda: ui.navigate.to("/voice-studio")
+                ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
+                    pass
 
-        with ui.card().classes("w-full mt-6 p-6"):
-            ui.label("Character Voices").classes("text-lg font-semibold mb-4")
+            # Provider selection
+            providers = tts.tts_manager.get_available_providers()
 
-            db = get_session()
+            with ui.card().classes("w-full mt-6").style(ui_theme.card_styles(current_theme)):
+                ui.label("Character Voices").style(
+                    f"font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']}; margin-bottom: 1rem;"
+                )
 
-            # Get or create character voices for this book
-            character_voices = db.query(CharacterVoice).filter(
-                CharacterVoice.book_id == book_id
-            ).all()
-            db.close()
+                db = get_session()
 
-            if character_voices:
-                for cv in character_voices:
-                    with ui.card().classes("w-full p-4 mb-3 bg-gray-50"):
-                        with ui.row().classes("w-full justify-between items-center"):
-                            with ui.column():
-                                ui.label(cv.character_name).classes("font-semibold")
-                                if cv.voice_name:
-                                    ui.label(f"Voice: {cv.voice_name}").classes("text-sm text-gray-500")
-                            with ui.row().classes("gap-2"):
-                                if TTSProviderType.MINIMAX in providers:
-                                    minimax_vid = cv.minimax_voice_id or "Not set"
-                                    ui.badge(f"MiniMax: {minimax_vid}", color="blue").classes("text-xs")
-                                if TTSProviderType.ELEVENLABS in providers:
-                                    elevenlabs_vid = cv.elevenlabs_voice_id or "Not set"
-                                    ui.badge(f"ElevenLabs: {elevenlabs_vid}", color="green").classes("text-xs")
+                # Get or create character voices for this book
+                character_voices = db.query(CharacterVoice).filter(
+                    CharacterVoice.book_id == book_id
+                ).all()
+                db.close()
+
+                if character_voices:
+                    for cv in character_voices:
+                        with ui.card().classes("w-full mb-3").style(f"background-color: {scheme['bg_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 1rem;"):
+                            with ui.row().classes("w-full justify-between items-center"):
+                                with ui.column():
+                                    ui.label(cv.character_name).style(f"font-weight: 600; color: {scheme['text_primary']};")
+                                    if cv.voice_name:
+                                        ui.label(f"Voice: {cv.voice_name}").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                                with ui.row().classes("gap-2"):
+                                    if TTSProviderType.MINIMAX in providers:
+                                        minimax_vid = cv.minimax_voice_id or "Not set"
+                                        ui.label(f"MiniMax: {minimax_vid}").style(f"background-color: {scheme['accent_blue']}22; color: {scheme['accent_blue']}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem;")
+                                    if TTSProviderType.ELEVENLABS in providers:
+                                        elevenlabs_vid = cv.elevenlabs_voice_id or "Not set"
+                                        ui.label(f"ElevenLabs: {elevenlabs_vid}").style(f"background-color: {scheme['accent_green']}22; color: {scheme['accent_green']}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem;")
+                else:
+                    ui.label("No character voices defined yet.").style(f"color: {scheme['text_muted']};")
+                    ui.label("Add character voices when narrating chapters.").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+
+            # Chapters section
+            ui.label("Chapters").style(
+                f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; margin-top: 2rem; margin-bottom: 1rem;"
+            )
+
+            chapters = get_chapters_for_book(book_id)
+
+            if not chapters:
+                with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                    ui.label("No chapters in this book yet.").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
             else:
-                ui.label("No character voices defined yet.").classes("text-gray-500")
-                ui.label("Add character voices when narrating chapters.").classes("text-sm text-gray-400")
+                with ui.column().classes("w-full gap-3"):
+                    for chapter in chapters:
+                        with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                            with ui.row().classes("w-full justify-between items-center"):
+                                with ui.column():
+                                    ui.label(f"Chapter {chapter.order}: {chapter.title}").style(f"font-weight: 600; color: {scheme['text_primary']};")
+                                    ui.label(f"{chapter.word_count:,} words").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                                with ui.row().classes("gap-2"):
+                                    # Check if TTS job exists
+                                    db = get_session()
+                                    existing_job = db.query(TTSJob).filter(
+                                        TTSJob.chapter_id == chapter.id
+                                    ).order_by(TTSJob.created_at.desc()).first()
+                                    db.close()
 
-        # Chapters section
-        ui.label("Chapters").classes("text-xl font-semibold mt-8 mb-4")
+                                    if existing_job:
+                                        status_color = {
+                                            TTSJobStatus.COMPLETED: scheme["status_completed"],
+                                            TTSJobStatus.FAILED: scheme["status_failed"],
+                                            TTSJobStatus.PENDING: scheme["status_pending"],
+                                            TTSJobStatus.PROCESSING: scheme["status_in_progress"],
+                                        }.get(existing_job.status, scheme["status_draft"])
+                                        ui.label(existing_job.status.value.replace("_", " ").title()).style(
+                                            f"background-color: {status_color}22; color: {status_color}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem;"
+                                        )
 
-        chapters = get_chapters_for_book(book_id)
-
-        if not chapters:
-            with ui.card().classes("w-full p-8"):
-                ui.label("No chapters in this book yet.").classes("text-gray-500")
-        else:
-            with ui.column().classes("w-full gap-3"):
-                for chapter in chapters:
-                    with ui.card().classes("w-full p-4"):
-                        with ui.row().classes("w-full justify-between items-center"):
-                            with ui.column():
-                                ui.label(f"Chapter {chapter.order}: {chapter.title}").classes("font-semibold")
-                                ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
-                            with ui.row().classes("gap-2"):
-                                # Check if TTS job exists
-                                db = get_session()
-                                existing_job = db.query(TTSJob).filter(
-                                    TTSJob.chapter_id == chapter.id
-                                ).order_by(TTSJob.created_at.desc()).first()
-                                db.close()
-
-                                if existing_job:
-                                    status_color = {
-                                        TTSJobStatus.COMPLETED: "positive",
-                                        TTSJobStatus.FAILED: "negative",
-                                        TTSJobStatus.PENDING: "warning",
-                                        TTSJobStatus.PROCESSING: "info",
-                                    }.get(existing_job.status, "grey")
-                                    ui.badge(
-                                        existing_job.status.value.replace("_", " ").title(),
-                                        color=status_color
-                                    )
-
-                                ui.button(
-                                    "Narrate",
-                                    icon="play_arrow",
-                                    on_click=lambda c=chapter: ui.navigate.to(f"/voice-studio/book/{book_id}/chapter/{c.id}")
-                                ).props("color=primary")
+                                    with ui.button(
+                                        "Narrate",
+                                        icon="play_arrow",
+                                        on_click=lambda c=chapter: ui.navigate.to(f"/voice-studio/book/{book_id}/chapter/{c.id}")
+                                    ).classes("").style(ui_theme.button_primary_styles()):
+                                        pass
 
 
 @ui.page("/voice-studio/book/{book_id}/chapter/{chapter_id}")
@@ -1782,105 +1799,89 @@ def _play_audio(audio_path: str):
 
 @ui.page("/backups")
 def backups_page():
-    """Backup management page."""
+    """Backup management page - warm studio theme."""
     if not auth.is_authenticated():
         ui.navigate.to("/login")
         return
 
-    # Header
-    with ui.header().classes("bg-white shadow"):
-        with ui.row().classes("w-full justify-between items-center px-4"):
-            ui.label(APP_TITLE).classes("text-xl font-bold text-gray-800")
+    user_id = auth.get_session("user_id")
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
 
-            with ui.row().classes("items-center gap-2"):
-                ui.button(
-                    "Dashboard",
-                    on_click=lambda: ui.navigate.to("/dashboard"),
-                    icon="dashboard"
-                ).props("flat dense").classes("text-gray-600")
-                ui.button(
-                    "Books",
-                    on_click=lambda: ui.navigate.to("/books"),
-                    icon="library_books"
-                ).props("flat dense").classes("text-gray-600")
-                ui.button(
-                    "Voice Studio",
-                    on_click=lambda: ui.navigate.to("/voice-studio"),
-                    icon="record_voice_over"
-                ).props("flat dense").classes("text-gray-600")
-                ui.button(
-                    "Backups",
-                    on_click=lambda: ui.navigate.to("/backups"),
-                    icon="backup"
-                ).props("flat dense").classes("text-blue-600")
-                if auth.is_authenticated():
-                    user_name = auth.get_session("user_name", "User")
-                    with ui.row().classes("items-center gap-2"):
-                        ui.label(f"👤 {user_name}").classes("text-sm")
-                        ui.button(
-                            icon="logout",
-                            on_click=lambda: ui.navigate.to("/logout")
-                        ).props("flat round")
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-        with ui.row().classes("w-full justify-between items-center"):
-            ui.label("Backup Management").classes("text-3xl font-bold")
-            ui.button(
-                "Create Backup",
-                icon="backup",
-                on_click=lambda: _create_backup()
-            ).props("color=primary")
+    # Use the main header
+    render_header()
 
-        # Backup info
-        last_backup = backup.get_last_backup_info()
-        with ui.card().classes("w-full mt-4 p-4"):
-            if last_backup:
-                ui.label(f"Last backup: {last_backup.get('created_at', 'unknown')}").classes("text-sm text-gray-600")
-                ui.label(f"Size: {last_backup.get('size', 0):,} bytes").classes("text-sm text-gray-500")
+    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+
+    with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+            with ui.row().classes("w-full justify-between items-center"):
+                ui.label("Backup Management").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
+                with ui.button(
+                    "Create Backup",
+                    icon="backup",
+                    on_click=lambda: _create_backup()
+                ).classes("").style(ui_theme.button_primary_styles()):
+                    pass
+
+            # Backup info
+            last_backup = backup.get_last_backup_info()
+            with ui.card().classes("w-full mt-4").style(ui_theme.card_styles(current_theme)):
+                if last_backup:
+                    ui.label(f"Last backup: {last_backup.get('created_at', 'unknown')}").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                    ui.label(f"Size: {last_backup.get('size', 0):,} bytes").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                else:
+                    ui.label("No backups yet").style(f"color: {scheme['text_muted']};")
+
+            # Backup list
+            ui.label("Available Backups").style(
+                f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; margin-top: 2rem; margin-bottom: 1rem;"
+            )
+
+            backups = backup.list_backups()
+
+            if not backups:
+                with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                    ui.label("No backups available").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
+                    ui.label("Create your first backup to protect your data.").style("text-align: center; margin-top: 0.5rem;")
             else:
-                ui.label("No backups yet").classes("text-gray-500")
+                with ui.column().classes("w-full gap-3"):
+                    for bk in backups[:10]:  # Show max 10
+                        with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                            with ui.row().classes("w-full justify-between items-center"):
+                                with ui.column():
+                                    ui.label(bk.get("book_title", "Unknown")).style(f"font-weight: 600; color: {scheme['text_primary']};")
+                                    ui.label(f"Created: {bk.get('created_at', 'unknown')}").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
+                                    ui.label(f"Size: {bk.get('size', 0):,} bytes").style(f"font-size: 0.75rem; color: {scheme['text_muted']};")
+                                with ui.row().classes("gap-2"):
+                                    # Verify button
+                                    is_valid = backup.verify_backup(bk.get("path", ""))
+                                    status_color = scheme["status_completed"] if is_valid else scheme["status_failed"]
+                                    ui.label("✓ Valid" if is_valid else "✗ Invalid").style(
+                                        f"background-color: {status_color}22; color: {status_color}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem;"
+                                    )
+                                    # Restore button
+                                    with ui.button(
+                                        "Restore",
+                                        icon="restore",
+                                        on_click=lambda b=bk: _confirm_restore(b)
+                                    ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                                        pass
+                                    # Delete button
+                                    with ui.button(
+                                        icon="delete",
+                                        on_click=lambda b=bk: _confirm_delete_backup(b)
+                                    ).classes("").style("background-color: transparent; color: #CA8B8B; border: none;"):
+                                        pass
 
-        # Backup list
-        ui.label("Available Backups").classes("text-xl font-semibold mt-8 mb-4")
-
-        backups = backup.list_backups()
-
-        if not backups:
-            with ui.card().classes("w-full p-8"):
-                ui.label("No backups available").classes("text-gray-500 text-center")
-                ui.label("Create your first backup to protect your data.").classes("text-center mt-2")
-        else:
-            with ui.column().classes("w-full gap-3"):
-                for bk in backups[:10]:  # Show max 10
-                    with ui.card().classes("w-full p-4"):
-                        with ui.row().classes("w-full justify-between items-center"):
-                            with ui.column():
-                                ui.label(bk.get("book_title", "Unknown")).classes("font-semibold")
-                                ui.label(f"Created: {bk.get('created_at', 'unknown')}").classes("text-sm text-gray-500")
-                                ui.label(f"Size: {bk.get('size', 0):,} bytes").classes("text-xs text-gray-400")
-                            with ui.row().classes("gap-2"):
-                                # Verify button
-                                is_valid = backup.verify_backup(bk.get("path", ""))
-                                status_color = "positive" if is_valid else "negative"
-                                ui.badge(
-                                    "✓ Valid" if is_valid else "✗ Invalid",
-                                    color=status_color
-                                )
-                                # Restore button
-                                ui.button(
-                                    "Restore",
-                                    icon="restore",
-                                    on_click=lambda b=bk: _confirm_restore(b)
-                                ).props("flat size=sm")
-                                # Delete button
-                                ui.button(
-                                    icon="delete",
-                                    on_click=lambda b=bk: _confirm_delete_backup(b)
-                                ).props("flat size=sm color=negative")
-
-        # Cleanup info
-        with ui.card().classes("w-full mt-8 p-4"):
-            ui.label(f"Retention: Max {backup.MAX_BACKUPS} backups, {backup.MAX_AGE_DAYS} days").classes("text-sm text-gray-500")
+            # Cleanup info
+            with ui.card().classes("w-full mt-8").style(ui_theme.card_styles(current_theme)):
+                ui.label(f"Retention: Max {backup.MAX_BACKUPS} backups, {backup.MAX_AGE_DAYS} days").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
 
     # Refresh table
     def _create_backup():
