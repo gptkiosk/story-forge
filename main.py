@@ -303,7 +303,7 @@ def render_header():
                 # Dev mode indicator
                 if auth.is_dev_mode():
                     ui.label("DEV MODE").style(
-                        "background-color: #E67E22; color: white; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;"
+                        f"background-color: #E67E22; color: {scheme['text_inverse']}; font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;"
                     )
 
             with ui.row().classes("items-center gap-1"):
@@ -816,7 +816,7 @@ def create_app():
 
         with ui.dialog() as dialog, ui.card():
             ui.label("Are you sure you want to delete this book?")
-            ui.label("This will also delete all chapters and cannot be undone.").classes("text-sm text-gray-500")
+            ui.label("This will also delete all chapters and cannot be undone.").style("font-size: 0.875rem; color: #9A948D")
             with ui.row().classes("mt-4 gap-2 justify-end"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
                 ui.button("Delete", on_click=lambda: [dialog.close(), do_delete()]).props("color=negative")
@@ -1048,7 +1048,7 @@ def create_app():
 
         with ui.dialog() as dialog, ui.card():
             ui.label("Are you sure you want to delete this chapter?")
-            ui.label("This cannot be undone.").classes("text-sm text-gray-500")
+            ui.label("This cannot be undone.").style("font-size: 0.875rem; color: #9A948D")
             with ui.row().classes("mt-4 gap-2 justify-end"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
                 ui.button("Delete", on_click=lambda: [dialog.close(), do_delete()]).props("color=negative")
@@ -1655,9 +1655,9 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
 
         # Chapter preview
         with ui.card().classes("w-full mt-4 p-6").style(f"border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
-            ui.label(f"Chapter {chapter.order}").classes("text-sm text-gray-500")
+            ui.label(f"Chapter {chapter.order}").style(f"font-size: 0.875rem; color: {scheme['text_muted']}")
             ui.label(chapter.title).classes("text-xl font-semibold")
-            ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
+            ui.label(f"{chapter.word_count:,} words").style(f"font-size: 0.875rem; color: {scheme['text_muted']}")
 
             if chapter.content:
                 preview = chapter.content[:500] + "..." if len(chapter.content) > 500 else chapter.content
@@ -1807,10 +1807,10 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
                         with ui.row().classes("w-full justify-between items-center"):
                             with ui.column():
                                 ui.label(f"Provider: {job.provider.value.title()}").classes("font-semibold")
-                                ui.label(f"Voice: {job.voice_id}").classes("text-sm text-gray-500")
-                                ui.label(f"Model: {job.model}").classes("text-sm text-gray-500")
+                                ui.label(f"Voice: {job.voice_id}").style(f"font-size: 0.875rem; color: {scheme['text_muted']}")
+                                ui.label(f"Model: {job.model}").style(f"font-size: 0.875rem; color: {scheme['text_muted']}")
                                 if job.cost_tokens:
-                                    ui.label(f"Cost: {job.cost_tokens} tokens").classes("text-xs text-gray-400")
+                                    ui.label(f"Cost: {job.cost_tokens} tokens").style(f"font-size: 0.75rem; color: {scheme['text_muted']}")
                             with ui.column().classes("items-end"):
                                 status_color = {
                                     TTSJobStatus.COMPLETED: "positive",
@@ -1955,7 +1955,7 @@ def backups_page():
             ui.label("⚠️ Restore Backup?").classes("text-xl font-bold")
             ui.label("This will replace your current database with:").classes("mt-4")
             ui.label(f"Backup from: {bk.get('created_at', 'unknown')}").classes("text-sm")
-            ui.label("Any unsaved changes will be lost.").classes("text-sm text-gray-500 mt-4")
+            ui.label("Any unsaved changes will be lost.").style(f"font-size: 0.875rem; color: {scheme['text_muted']}; margin-top: 1rem;")
             with ui.row().classes("w-full justify-end gap-2 mt-4"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
                 ui.button(
@@ -1978,7 +1978,7 @@ def backups_page():
         with ui.dialog() as dialog, ui.card():
             ui.label("⚠️ Delete Backup?").classes("text-xl font-bold")
             ui.label(f"Backup from: {bk.get('created_at', 'unknown')}").classes("mt-4")
-            ui.label("This cannot be undone.").classes("text-sm text-gray-500")
+            ui.label("This cannot be undone.").style("font-size: 0.875rem; color: #9A948D")
             with ui.row().classes("w-full justify-end gap-2 mt-4"):
                 ui.button("Cancel", on_click=dialog.close).props("flat")
                 ui.button(
