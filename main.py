@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib import parse as urllib_parse
 from datetime import datetime
 
-from nicegui import ui
+from nicegui import ui, app
 import auth
 import tts
 import backup
@@ -33,83 +33,6 @@ from db import (
 )
 
 
-# =============================================================================
-# Empty State SVG Illustrations - Minimalist Line Art
-# =============================================================================
-
-SVG_BOOK_FEATHER = """
-<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="100" height="100" style="display:block;margin:0 auto 1rem;">
-  <path d="M20 75 L20 40 Q30 35 40 38 L60 42 Q60 42 60 42 L60 38 Q70 35 80 38 L100 40 L100 75 Q90 72 80 74 L60 78 Q60 78 60 78 L60 74 Q50 72 40 74 L20 75 Z"
-        fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="60" y1="42" x2="60" y2="78" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="30" y1="48" x2="52" y2="51" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <line x1="30" y1="55" x2="52" y2="58" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <line x1="30" y1="62" x2="52" y2="65" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <line x1="68" y1="51" x2="90" y2="48" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <line x1="68" y1="58" x2="90" y2="55" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <line x1="68" y1="65" x2="90" y2="62" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <path d="M88 80 Q95 55 85 30 Q83 25 88 22 L90 20 Q92 23 92 28 Q92 50 88 80 Z"
-        fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="89" y1="22" x2="88" y2="80" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 35 Q80 38 75 36" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 45 Q78 48 72 46" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 55 Q80 58 75 56" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 65 Q82 67 78 66" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 40 Q94 42 96 40" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 50 Q96 52 100 50" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-  <path d="M88 60 Q95 62 98 60" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round"/>
-</svg>
-"""
-
-SVG_FEATHER_QUILL = """
-<svg viewBox="0 0 80 120" xmlns="http://www.w3.org/2000/svg">
-  <path d="M40 115 Q38 80 42 50 Q44 30 40 15" fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M40 15 Q55 20 62 40 Q66 55 60 70 Q54 82 40 85 Q26 82 20 70 Q14 55 18 40 Q25 20 40 15 Z"
-        fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M40 18 Q42 40 41 82" fill="none" stroke="#C9A96E" stroke-width="1.2" stroke-linecap="round"/>
-  <path d="M40 25 Q30 28 25 27" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 35 Q28 38 22 37" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 45 Q28 48 22 47" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 55 Q30 57 25 56" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 65 Q32 67 28 66" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 75 Q34 77 31 76" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 30 Q50 32 54 31" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 40 Q52 42 57 41" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 50 Q52 52 57 51" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 60 Q50 62 54 61" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M40 70 Q48 72 51 71" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
-  <path d="M38 115 L40 118 L42 115" fill="none" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-"""
-
-SVG_MICROPHONE = """
-<svg viewBox="0 0 80 120" xmlns="http://www.w3.org/2000/svg">
-  <rect x="25" y="10" width="30" height="50" rx="15" fill="none" stroke="#C9A96E" stroke-width="1.8"/>
-  <path d="M20 50 Q20 75 40 75 Q60 75 60 50" fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round"/>
-  <line x1="40" y1="75" x2="40" y2="95" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round"/>
-  <line x1="25" y1="95" x2="55" y2="95" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round"/>
-  <line x1="30" y1="25" x2="50" y2="25" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
-  <line x1="30" y1="33" x2="50" y2="33" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
-  <line x1="30" y1="41" x2="50" y2="41" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
-  <path d="M68 30 Q74 40 68 50" fill="none" stroke="#C9A96E" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
-  <path d="M73 22 Q82 40 73 58" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-  <path d="M12 30 Q6 40 12 50" fill="none" stroke="#C9A96E" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
-  <path d="M7 22 Q-2 40 7 58" fill="none" stroke="#C9A96E" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-</svg>
-"""
-
-SVG_BOOK_STACK = """
-<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-  <rect x="15" y="85" width="90" height="20" rx="3" fill="none" stroke="#C9A96E" stroke-width="1.6" stroke-linejoin="round"/>
-  <line x1="15" y1="92" x2="105" y2="92" stroke="#C9A96E" stroke-width="1" opacity="0.5"/>
-  <rect x="20" y="65" width="85" height="20" rx="3" fill="none" stroke="#C9A96E" stroke-width="1.6" stroke-linejoin="round"/>
-  <line x1="20" y1="72" x2="105" y2="72" stroke="#C9A96E" stroke-width="1" opacity="0.5"/>
-  <path d="M25 50 L25 30 Q40 26 55 28 L55 48 Q40 46 25 50 Z" fill="none" stroke="#C9A96E" stroke-width="1.6" stroke-linejoin="round"/>
-  <path d="M95 50 L95 30 Q80 26 65 28 L65 48 Q80 46 95 50 Z" fill="none" stroke="#C9A96E" stroke-width="1.6" stroke-linejoin="round"/>
-  <line x1="60" y1="30" x2="60" y2="48" stroke="#C9A96E" stroke-width="1.2"/>
-  <path d="M75 30 L75 22 L80 26 L85 22 L85 30" fill="none" stroke="#C9A96E" stroke-width="1.2" stroke-linejoin="round"/>
-</svg>
-"""
 
 # Configure environment
 DATA_DIR = Path("./data")
@@ -829,7 +752,7 @@ def create_app():
                 # Empty state
                 else:
                     with ui.card().classes("w-full").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 3rem; text-align: center;"):
-                        ui.html(SVG_BOOK_FEATHER).style("width: 100px; height: 100px; margin: 0 auto 1rem;")
+                        ui.image("/static/svg/book-feather.svg").style("width: 100px; height: 100px; margin: 0 auto 1rem; display: block;")
                         ui.label("No books yet").style(
                             f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']};"
                         )
@@ -1111,7 +1034,7 @@ def create_app():
 
                 else:
                     with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                        ui.html(SVG_FEATHER_QUILL).style("width: 60px; height: 80px; margin: 0 auto 1rem; display: block;")
+                        ui.image("/static/svg/feather-quill.svg").style("width: 60px; height: 80px; margin: 0 auto 1rem; display: block;")
                         ui.label("No chapters yet").style(f"color: {scheme['text_muted']}; text-align: center; padding: 0.5rem 0 1.5rem; font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem;")
                         with ui.button(
                             "Add Your First Chapter",
@@ -1555,7 +1478,7 @@ def voice_studio_page():
 
                 if not books:
                     with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                        ui.html(SVG_BOOK_STACK).style("width: 80px; height: 80px; margin: 0 auto 1rem; display: block;")
+                        ui.image("/static/svg/book-stack.svg").style("width: 80px; height: 80px; margin: 0 auto 1rem; display: block;")
                         ui.label("No books found").style(f"color: {scheme['text_muted']}; text-align: center; padding: 0.5rem 0 1.5rem; font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem;")
                         with ui.button(
                             "Create Your First Book",
@@ -1664,7 +1587,7 @@ def voice_studio_book_page(book_id: int):
 
             if not chapters:
                 with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                    ui.html(SVG_FEATHER_QUILL).style("width: 50px; height: 70px; margin: 0 auto 1rem; display: block;")
+                    ui.image("/static/svg/feather-quill.svg").style("width: 50px; height: 70px; margin: 0 auto 1rem; display: block;")
                     ui.label("No chapters in this book yet.").style(f"color: {scheme['text_muted']}; text-align: center; padding: 0.5rem 0 1.5rem; font-family: 'Merriweather', Georgia, serif; font-size: 1rem;")
             else:
                 with ui.column().classes("w-full gap-3"):
@@ -2103,9 +2026,17 @@ def main():
     # Create the app
     create_app()
 
+    # Serve static SVG files for illustrated empty states
+    app.add_static_files("/static", "static")
+
     # Run the app
     port = int(os.environ.get("PORT", "8080"))
-    ui.run(host="0.0.0.0", port=port, title=APP_TITLE, reload=False)
+    ui.run(
+        host="0.0.0.0",
+        port=port,
+        title=APP_TITLE,
+        reload=False,
+    )
 
 
 if __name__ == "__main__":
