@@ -270,7 +270,8 @@ def render_header():
     ui.add_head_html('''
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
         <style>
-            html, body { overflow: hidden; height: 100vh; }
+            html, body { overflow: hidden; height: 100vh; background-color: #FDF8F3; }
+            body { margin: 0; padding: 0; }
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
             .q-field__native, .q-field__input { color: inherit !important; }
@@ -652,7 +653,7 @@ def create_app():
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
             with ui.column().classes("w-full max-w-6xl mx-auto p-8").style(
-                f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 20px; margin-top: 1rem;"
+                f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_light']}; border-radius: 20px;"
             ):
                 with ui.row().classes("justify-between items-center w-full mb-6"):
                     ui.label("Your Books").style(
@@ -1381,7 +1382,8 @@ def render_voice_studio_header():
     ui.add_head_html('''
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
         <style>
-            html, body { overflow: hidden; height: 100vh; }
+            html, body { overflow: hidden; height: 100vh; background-color: #FDF8F3; }
+            body { margin: 0; padding: 0; }
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
         </style>
