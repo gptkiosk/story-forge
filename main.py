@@ -38,7 +38,7 @@ from db import (
 # =============================================================================
 
 SVG_BOOK_FEATHER = """
-<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="enable-background:new 0 0 120 120">
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="100" height="100" style="display:block;margin:0 auto 1rem;">
   <path d="M20 75 L20 40 Q30 35 40 38 L60 42 Q60 42 60 42 L60 38 Q70 35 80 38 L100 40 L100 75 Q90 72 80 74 L60 78 Q60 78 60 78 L60 74 Q50 72 40 74 L20 75 Z"
         fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
   <line x1="60" y1="42" x2="60" y2="78" stroke="#C9A96E" stroke-width="1.5" stroke-linecap="round"/>
@@ -343,13 +343,16 @@ def recalculate_book_word_count(book_id: int) -> int:
 
 def render_header():
     """Render the common header with navigation - warm studio theme."""
-    # Load Material Symbols Outlined font for line-art icons
+    # Load Material Symbols Outlined font + global placeholder styling
     ui.add_head_html('''
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
         <style>
             html, body { overflow: hidden; height: 100vh; }
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
+            .q-field__native, .q-field__input { color: inherit !important; }
+            input::placeholder { color: #9A948D; opacity: 1; }
+            input::-webkit-input-placeholder { color: #9A948D; }
         </style>
     ''')
 
