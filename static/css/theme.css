@@ -111,7 +111,7 @@
 }
 
 /* =============================================================================
-   Base Styles - Lock Page Scrolling
+   Base Styles - Lock Page Scrolling Completely
    ============================================================================= */
 
 html, body {
@@ -120,11 +120,19 @@ html, body {
   color: var(--text-primary);
   margin: 0;
   padding: 0;
-  min-height: 100vh;
-  transition: background-color var(--transition-normal), color var(--transition-normal);
-  /* Lock page scrolling - only panes scroll when needed */
+  height: 100vh;
+  width: 100vw;
   overflow: hidden;
-  height: 100%;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* Lock scrolling on all parents */
+body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 /* Custom Scrollbar */
@@ -191,12 +199,12 @@ p {
 }
 
 /* =============================================================================
-   Cards
+   Cards - Bordered Panels
    ============================================================================= */
 
 .card {
   background-color: var(--bg-card);
-  border: 1px solid var(--border-light);
+  border: 2px solid var(--border-medium);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
@@ -205,7 +213,7 @@ p {
 
 .card:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--border-medium);
+  border-color: var(--accent-primary);
 }
 
 .card-title {
@@ -219,6 +227,56 @@ p {
 .card-subtitle {
   font-size: 0.875rem;
   color: var(--text-muted);
+}
+
+/* Bordered content panels */
+.bordered-panel {
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.bordered-panel:hover {
+  border-color: var(--accent-primary);
+}
+
+/* Input bordered containers */
+.bordered-input {
+  background-color: var(--bg-input);
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  transition: all var(--transition-fast);
+}
+
+.bordered-input:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Navigation bordered containers */
+.bordered-nav {
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+/* Stats bordered cards */
+.bordered-stat {
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  text-align: center;
+  transition: all var(--transition-normal);
+}
+
+.bordered-stat:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 /* =============================================================================
@@ -403,7 +461,7 @@ p {
 }
 
 /* =============================================================================
-   Page Layout - Scrollable Panes
+   Page Layout - Locked Scrolling, Only Panes Scroll
    ============================================================================= */
 
 .page-container {
@@ -426,40 +484,50 @@ p {
   margin-bottom: 2rem;
 }
 
-/* Scrollable pane - only this container scrolls when content overflows */
-.scrollable-pane {
+/* Lock ALL page scrolling - NO page-level scrolling */
+.scrollable-pane,
+.main-content,
+.nicegui-content,
+.q-page-container,
+.q-layout {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+/* Only these specific containers can scroll */
+.scroll-container {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Custom scrollbar */
   scrollbar-width: thin;
   scrollbar-color: var(--border-medium) transparent;
 }
 
-.scrollable-pane::-webkit-scrollbar {
+.scroll-container::-webkit-scrollbar {
   width: 6px;
 }
 
-.scrollable-pane::-webkit-scrollbar-track {
+.scroll-container::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.scrollable-pane::-webkit-scrollbar-thumb {
+.scroll-container::-webkit-scrollbar-thumb {
   background-color: var(--border-medium);
   border-radius: 3px;
 }
 
-/* Main content area that takes remaining height */
-.main-content {
-  height: calc(100vh - 60px); /* 60px is header height */
+/* Panel with internal scrolling only */
+.self-scrolling-panel {
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-/* NiceGUI content wrapper */
-.nicegui-content {
-  height: 100vh !important;
-  overflow: hidden !important;
+/* Override for main content area */
+.main-scroll {
+  height: calc(100vh - 60px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
 /* =============================================================================

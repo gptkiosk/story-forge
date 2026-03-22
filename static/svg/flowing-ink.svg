@@ -1,0 +1,67 @@
+<!-- Flowing Ink Line Art - Animated -->
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .ink-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .ink-fill {
+      fill: #C9A96E;
+      opacity: 0.2;
+    }
+    @keyframes flow {
+      0% { d: path("M100 20 Q80 60 100 100 Q120 140 100 180"); }
+      33% { d: path("M100 20 Q120 60 100 100 Q80 140 100 180"); }
+      66% { d: path("M100 20 Q90 60 100 100 Q110 140 100 180"); }
+      100% { d: path("M100 20 Q80 60 100 100 Q120 140 100 180"); }
+    }
+    @keyframes drip1 {
+      0% { transform: translateY(0); opacity: 0.3; }
+      100% { transform: translateY(30px); opacity: 0; }
+    }
+    @keyframes waveMove {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(5px); }
+    }
+    .main-ink {
+      animation: flow 8s ease-in-out infinite;
+    }
+    .drip { animation: drip1 3s ease-in-out infinite; }
+    .wave1 { animation: waveMove 4s ease-in-out infinite; }
+    .wave2 { animation: waveMove 4s ease-in-out infinite 0.5s; }
+    .wave3 { animation: waveMove 4s ease-in-out infinite 1s; }
+  </style>
+  
+  <!-- Main ink flow -->
+  <path class="main-ink ink-stroke" d="M100 20 Q80 60 100 100 Q120 140 100 180"/>
+  
+  <!-- Ink splashes/drops at bottom -->
+  <circle cx="95" cy="185" r="3" class="ink-fill drip"/>
+  <circle cx="105" cy="190" r="2" class="ink-fill drip" style="animation-delay: 1s"/>
+  <circle cx="100" cy="188" r="2.5" class="ink-fill drip" style="animation-delay: 2s"/>
+  
+  <!-- Flowing curves around main -->
+  <g class="wave1">
+    <path class="ink-stroke" d="M70 60 Q60 80 70 100 Q80 120 70 140" opacity="0.4"/>
+  </g>
+  <g class="wave2">
+    <path class="ink-stroke" d="M130 40 Q140 60 130 80 Q120 100 130 120" opacity="0.3"/>
+  </g>
+  <g class="wave3">
+    <path class="ink-stroke" d="M80 30 Q70 50 80 70" opacity="0.2"/>
+  </g>
+  
+  <!-- Ink pool at top -->
+  <ellipse cx="100" cy="20" rx="15" ry="5" class="ink-fill"/>
+  <ellipse cx="100" cy="20" rx="10" ry="3" class="ink-stroke" opacity="0.5"/>
+  
+  <!-- Decorative dots -->
+  <circle cx="60" cy="50" r="1.5" class="ink-fill"/>
+  <circle cx="140" cy="70" r="1" class="ink-fill"/>
+  <circle cx="55" cy="100" r="1.5" class="ink-fill"/>
+  <circle cx="145" cy="120" r="1" class="ink-fill"/>
+  <circle cx="65" cy="150" r="1" class="ink-fill"/>
+</svg>

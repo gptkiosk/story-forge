@@ -68,9 +68,9 @@ def card_bg(theme: str) -> str:
 
 
 def card_styles(theme: str, extra: str = "") -> str:
-    """Get card container styles."""
+    """Get card container styles - bordered panels."""
     scheme = preferences.Theme.SCHEMES.get(theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
-    base = f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1.5rem;"
+    base = f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_medium']}; border-radius: 16px; padding: 1.5rem; transition: all 0.25s ease;"
     return f"{base} {extra}".strip()
 
 

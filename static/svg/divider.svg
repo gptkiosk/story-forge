@@ -1,0 +1,40 @@
+<!-- Section Divider - Writing Theme -->
+<svg viewBox="0 0 400 40" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .div-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 1;
+      stroke-linecap: round;
+    }
+    .div-dot {
+      fill: #C9A96E;
+      opacity: 0.5;
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
+    }
+    .center-dot { animation: breathe 4s ease-in-out infinite; }
+  </style>
+  
+  <!-- Left lines -->
+  <path class="div-stroke" d="M0 20 L150 20" opacity="0.3"/>
+  <path class="div-stroke" d="M20 20 Q35 15 50 20 Q65 25 80 20" opacity="0.4"/>
+  
+  <!-- Center decoration -->
+  <circle cx="200" cy="20" r="3" class="div-dot center-dot"/>
+  <circle cx="185" cy="20" r="1.5" class="div-dot" opacity="0.3"/>
+  <circle cx="215" cy="20" r="1.5" class="div-dot" opacity="0.3"/>
+  
+  <!-- Small feather quill in center -->
+  <g transform="translate(195, 15) scale(0.3)">
+    <path class="div-stroke" d="M15 0 Q10 15 15 30 Q20 15 15 0" stroke-width="1"/>
+    <path class="div-stroke" d="M15 5 Q8 10 5 8" stroke-width="0.75" opacity="0.5"/>
+    <path class="div-stroke" d="M15 10 Q22 12 25 10" stroke-width="0.75" opacity="0.5"/>
+  </g>
+  
+  <!-- Right lines -->
+  <path class="div-stroke" d="M250 20 Q265 15 280 20 Q295 25 310 20" opacity="0.4"/>
+  <path class="div-stroke" d="M320 20 L400 20" opacity="0.3"/>
+</svg>

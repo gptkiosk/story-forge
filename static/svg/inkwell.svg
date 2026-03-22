@@ -1,0 +1,53 @@
+<!-- Inkwell Line Art - Animated -->
+<svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .ink-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .ink-fill {
+      fill: #C9A96E;
+      opacity: 0.25;
+    }
+    @keyframes bubble {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+      50% { transform: translateY(-5px) scale(1.2); opacity: 0.5; }
+    }
+    @keyframes shimmer {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.4; }
+    }
+    .bubble1 { animation: bubble 3s ease-in-out infinite; }
+    .bubble2 { animation: bubble 4s ease-in-out infinite 1s; }
+    .shimmer { animation: shimmer 5s ease-in-out infinite; }
+  </style>
+  
+  <!-- Inkwell base -->
+  <path class="ink-stroke" d="M20 80 L15 110 Q15 118 25 118 L75 118 Q85 118 85 110 L80 80 Z"/>
+  
+  <!-- Inkwell neck -->
+  <path class="ink-stroke" d="M25 80 L25 60 Q25 50 35 50 L65 50 Q75 50 75 60 L75 80"/>
+  
+  <!-- Inkwell top rim -->
+  <ellipse cx="50" cy="50" rx="28" ry="6" class="ink-stroke"/>
+  
+  <!-- Ink surface -->
+  <ellipse cx="50" cy="85" rx="25" ry="5" class="ink-fill shimmer"/>
+  
+  <!-- Ink depth lines -->
+  <path class="ink-stroke" d="M30 85 Q50 80 70 85" opacity="0.4"/>
+  <path class="ink-stroke" d="M32 90 Q50 86 68 90" opacity="0.3"/>
+  <path class="ink-stroke" d="M35 95 Q50 92 65 95" opacity="0.2"/>
+  
+  <!-- Bubbles -->
+  <circle cx="40" cy="82" r="2" class="ink-fill bubble1"/>
+  <circle cx="55" cy="80" r="1.5" class="ink-fill bubble2"/>
+  <circle cx="60" cy="88" r="1" class="ink-fill" opacity="0.2"/>
+  
+  <!-- Decorative band on base -->
+  <path class="ink-stroke" d="M18 100 Q50 95 82 100" opacity="0.3"/>
+  <path class="ink-stroke" d="M16 105 Q50 100 84 105" opacity="0.2"/>
+</svg>

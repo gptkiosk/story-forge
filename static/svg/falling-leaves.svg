@@ -1,0 +1,68 @@
+<!-- Falling Leaves Line Art - Animated -->
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .leaf-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .leaf-fill {
+      fill: #C9A96E;
+      opacity: 0.2;
+    }
+    @keyframes fall1 {
+      0% { transform: translate(0, 0) rotate(0deg); opacity: 0.7; }
+      25% { transform: translate(10px, 50px) rotate(45deg); opacity: 0.6; }
+      50% { transform: translate(-5px, 100px) rotate(90deg); opacity: 0.5; }
+      75% { transform: translate(8px, 150px) rotate(135deg); opacity: 0.3; }
+      100% { transform: translate(0, 200px) rotate(180deg); opacity: 0; }
+    }
+    @keyframes fall2 {
+      0% { transform: translate(0, 0) rotate(0deg); opacity: 0.6; }
+      33% { transform: translate(-12px, 66px) rotate(-60deg); opacity: 0.5; }
+      66% { transform: translate(5px, 133px) rotate(60deg); opacity: 0.3; }
+      100% { transform: translate(-3px, 200px) rotate(120deg); opacity: 0; }
+    }
+    @keyframes sway {
+      0%, 100% { transform: translateX(0) rotate(0deg); }
+      50% { transform: translateX(3px) rotate(2deg); }
+    }
+    .leaf1 { animation: fall1 8s ease-in infinite; }
+    .leaf2 { animation: fall2 10s ease-in infinite 2s; }
+    .leaf3 { animation: fall1 9s ease-in infinite 4s; }
+    .twig { animation: sway 5s ease-in-out infinite; transform-origin: center bottom; }
+  </style>
+  
+  <!-- Branch/twig -->
+  <g class="twig">
+    <path class="leaf-stroke" d="M100 200 Q100 150 100 100"/>
+    <path class="leaf-stroke" d="M100 120 Q80 100 60 90"/>
+    <path class="leaf-stroke" d="M100 140 Q120 130 140 125"/>
+    <path class="leaf-stroke" d="M100 160 Q85 150 70 155"/>
+    <path class="leaf-stroke" d="M100 170 Q110 165 125 170"/>
+  </g>
+  
+  <!-- Falling leaves -->
+  <g class="leaf1">
+    <path class="leaf-stroke" d="M30 30 Q45 20 60 30 Q45 40 30 30"/>
+    <path class="leaf-fill" d="M35 30 Q45 25 55 30 Q45 35 35 30"/>
+    <path class="leaf-stroke" d="M45 30 L40 45" opacity="0.5"/>
+  </g>
+  
+  <g class="leaf2">
+    <path class="leaf-stroke" d="M150 10 Q165 0 180 10 Q165 20 150 10"/>
+    <path class="leaf-fill" d="M155 10 Q165 5 175 10 Q165 15 155 10"/>
+    <path class="leaf-stroke" d="M165 10 L160 25" opacity="0.5"/>
+  </g>
+  
+  <g class="leaf3">
+    <path class="leaf-stroke" d="M80 0 Q95 -10 110 0 Q95 10 80 0"/>
+    <path class="leaf-fill" d="M85 0 Q95 -5 105 0 Q95 5 85 0"/>
+    <path class="leaf-stroke" d="M95 0 L90 15" opacity="0.5"/>
+  </g>
+  
+  <!-- Ground line (subtle) -->
+  <path class="leaf-stroke" d="M20 195 Q100 190 180 195" opacity="0.2"/>
+</svg>

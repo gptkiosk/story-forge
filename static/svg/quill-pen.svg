@@ -1,0 +1,72 @@
+<!-- Quill Pen Line Art - Animated -->
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .quill-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .quill-fill {
+      fill: #C9A96E;
+      opacity: 0.3;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-8px) rotate(2deg); }
+    }
+    @keyframes sway {
+      0%, 100% { transform: translateX(0) rotate(0deg); }
+      50% { transform: translateX(3px) rotate(1deg); }
+    }
+    .quill-feather {
+      animation: float 6s ease-in-out infinite;
+      transform-origin: center bottom;
+    }
+    .ink-line {
+      animation: sway 4s ease-in-out infinite;
+      transform-origin: center top;
+    }
+  </style>
+  
+  <!-- Ink pot base -->
+  <ellipse cx="100" cy="170" rx="30" ry="8" class="quill-stroke"/>
+  <path d="M70 170 L70 140 Q70 130 80 130 L120 130 Q130 130 130 140 L130 170" class="quill-stroke"/>
+  <ellipse cx="100" cy="130" rx="25" ry="6" class="quill-stroke"/>
+  
+  <!-- Ink surface -->
+  <ellipse cx="100" cy="135" rx="20" ry="4" class="quill-fill"/>
+  
+  <!-- Quill feather -->
+  <g class="quill-feather">
+    <!-- Feather shaft -->
+    <path d="M100 130 Q95 90 100 40 Q105 90 100 130" class="quill-stroke"/>
+    
+    <!-- Feather barbs - left -->
+    <path d="M100 50 Q80 45 60 55" class="quill-stroke" opacity="0.7"/>
+    <path d="M100 60 Q75 58 55 70" class="quill-stroke" opacity="0.6"/>
+    <path d="M100 70 Q78 70 60 85" class="quill-stroke" opacity="0.5"/>
+    <path d="M100 80 Q82 82 68 95" class="quill-stroke" opacity="0.4"/>
+    <path d="M100 90 Q85 95 75 105" class="quill-stroke" opacity="0.3"/>
+    
+    <!-- Feather barbs - right -->
+    <path d="M100 50 Q120 45 140 55" class="quill-stroke" opacity="0.7"/>
+    <path d="M100 60 Q125 58 145 70" class="quill-stroke" opacity="0.6"/>
+    <path d="M100 70 Q122 70 140 85" class="quill-stroke" opacity="0.5"/>
+    <path d="M100 80 Q118 82 132 95" class="quill-stroke" opacity="0.4"/>
+    <path d="M100 90 Q115 95 125 105" class="quill-stroke" opacity="0.3"/>
+  </g>
+  
+  <!-- Nib touching ink -->
+  <path d="M97 125 L100 135 L103 125" class="quill-stroke"/>
+  
+  <!-- Ink drops -->
+  <circle cx="92" cy="138" r="1.5" class="quill-fill">
+    <animate attributeName="cy" values="138;142;138" dur="3s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="108" cy="140" r="1" class="quill-fill">
+    <animate attributeName="cy" values="140;145;140" dur="4s" repeatCount="indefinite"/>
+  </circle>
+</svg>

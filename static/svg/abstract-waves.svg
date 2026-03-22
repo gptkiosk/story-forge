@@ -1,0 +1,30 @@
+<!-- Abstract Waves Line Art - Animated -->
+<svg viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .wave-stroke {
+      fill: none;
+      stroke: #C9A96E;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    @keyframes waveFlow1 {
+      0%, 100% { d: path("M0 50 Q37.5 30 75 50 Q112.5 70 150 50 Q187.5 30 225 50 Q262.5 70 300 50"); }
+      50% { d: path("M0 50 Q37.5 70 75 50 Q112.5 30 150 50 Q187.5 70 225 50 Q262.5 30 300 50"); }
+    }
+    @keyframes waveFlow2 {
+      0%, 100% { d: path("M0 60 Q37.5 40 75 60 Q112.5 80 150 60 Q187.5 40 225 60 Q262.5 80 300 60"); }
+      50% { d: path("M0 60 Q37.5 80 75 60 Q112.5 40 150 60 Q187.5 80 225 60 Q262.5 40 300 60"); }
+    }
+    @keyframes waveFlow3 {
+      0%, 100% { d: path("M0 40 Q37.5 20 75 40 Q112.5 60 150 40 Q187.5 20 225 40 Q262.5 60 300 40"); }
+      50% { d: path("M0 40 Q37.5 60 75 40 Q112.5 20 150 40 Q187.5 60 225 40 Q262.5 20 300 40"); }
+    }
+    .wave1 { animation: waveFlow1 6s ease-in-out infinite; }
+    .wave2 { animation: waveFlow2 7s ease-in-out infinite; }
+    .wave3 { animation: waveFlow3 5s ease-in-out infinite; }
+  </style>
+  
+  <path class="wave1 wave-stroke" d="M0 50 Q37.5 30 75 50 Q112.5 70 150 50 Q187.5 30 225 50 Q262.5 70 300 50" opacity="0.8"/>
+  <path class="wave2 wave-stroke" d="M0 60 Q37.5 40 75 60 Q112.5 80 150 60 Q187.5 40 225 60 Q262.5 80 300 60" opacity="0.5"/>
+  <path class="wave3 wave-stroke" d="M0 40 Q37.5 20 75 40 Q112.5 60 150 40 Q187.5 20 225 40 Q262.5 60 300 40" opacity="0.3"/>
+</svg>
