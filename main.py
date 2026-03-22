@@ -1636,6 +1636,13 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
         ui.navigate.to(f"/voice-studio/book/{book_id}")
         return
 
+    user_id = auth.get_session("user_id")
+    current_theme = preferences.Theme.LIGHT
+    if user_id:
+        current_theme = preferences.get_theme_for_user(user_id)
+
+    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
+
     render_voice_studio_header()
 
     with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
