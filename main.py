@@ -349,8 +349,7 @@ def _toggle_theme():
     if user_id:
         new_theme, _ = preferences.toggle_theme(user_id)
         # Refresh to apply new theme
-        # Refresh the current page to apply new theme
-        ui.navigate.to(ui.request.url.path)
+        ui.run_javascript("window.location.reload()")
     else:
         # For non-authenticated users, use client-side toggle via JavaScript
         ui.run_javascript("""
