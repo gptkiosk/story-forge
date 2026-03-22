@@ -526,6 +526,26 @@ def create_app():
                     f"font-family: 'Caveat', cursive; font-size: 1.25rem; color: {scheme['text_muted']}; font-style: italic; padding: 1rem 1.5rem; background-color: {scheme['bg_secondary']}; border-radius: 16px; margin-bottom: 2rem; max-width: 600px;"
                 )
 
+                # Get book count for empty state check
+                book_count = get_book_count()
+
+                # Illustrated empty state when no books
+                if book_count == 0:
+                    with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
+                        ui.image("/static/svg/open-book.svg").style("width: 80px; height: 80px; margin: 0 auto 1rem; display: block;")
+                        ui.label("Your story starts here").style(
+                            f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; text-align: center;"
+                        )
+                        ui.label("Create your first book and watch your library grow.").style(
+                            f"font-size: 0.875rem; color: {scheme['text_muted']}; text-align: center; margin-top: 0.5rem; margin-bottom: 1.5rem;"
+                        )
+                        with ui.button(
+                            "Start Writing",
+                            icon="o_add",
+                            on_click=lambda: ui.navigate.to("/books/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
+                            pass
+
                 # Stats cards - warm studio style
                 book_count = get_book_count()
                 chapter_count = get_chapter_count()
@@ -1908,7 +1928,9 @@ def backups_page():
 
             if not backups:
                 with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                    ui.label("No backups available").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
+                    ui.image("/static/svg/inkwell.svg").style("width: 60px; height: 60px; margin: 0 auto 1rem; display: block;")
+                    ui.label("No backups available").style(f"color: {scheme['text_muted']}; text-align: center; font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; padding: 0.5rem 0 1rem;")
+                    ui.label("Create your first backup to protect your data.").style(f"color: {scheme['text_muted']}; text-align: center; font-size: 0.875rem;")
                     ui.label("Create your first backup to protect your data.").style("text-align: center; margin-top: 0.5rem;")
             else:
                 with ui.column().classes("w-full gap-3"):
