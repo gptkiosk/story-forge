@@ -656,7 +656,7 @@ def create_app():
             ):
                 with ui.row().classes("justify-between items-center w-full mb-6"):
                     ui.label("Your Books").style(
-                        f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                        f"font-family: 'Merriweather', Georgia, serif; font-size: 3rem; font-weight: 800; color: {scheme['text_primary']}; letter-spacing: -0.02em;"
                     )
                     with ui.button(
                         "New Book",
