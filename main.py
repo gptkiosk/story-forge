@@ -646,7 +646,7 @@ def create_app():
                             value=search or "",
                             placeholder="Type to search..."
                         ).classes("flex-1").style(
-                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 0.75rem 1rem;"
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 0.75rem 1rem; text-align: center;"
                         )
 
                         status_options = [
