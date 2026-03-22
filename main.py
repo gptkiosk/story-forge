@@ -302,7 +302,7 @@ def render_header():
         with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
             with ui.row().classes("items-center gap-4"):
                 # App title - large and prominent with Caveat
-                ui.label(APP_TITLE).style(
+                ui.label("Story Forge").style(
                     f"font-family: 'Caveat', 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']}; letter-spacing: -0.02em;"
                 )
 
@@ -321,14 +321,23 @@ def render_header():
                     ("Backups", "o_backup", "/backups"),
                 ]
 
+                # Highlight active tab
+                active_routes = {
+                    "/dashboard": "Dashboard",
+                    "/books": "Books",
+                    "/voice-studio": "Voice Studio",
+                    "/backups": "Backups",
+                }
+                active_tab = active_routes.get(ui.request.url.path if hasattr(ui, 'request') and hasattr(ui.request, 'path') else "", "")
+
                 for label, icon, route in nav_buttons:
+                    is_active = (label == active_tab)
+                    btn_style = f"background-color: {scheme['bg_secondary']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 600; font-size: 0.875rem;" if is_active else f"background-color: transparent; color: {scheme['text_secondary']}; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
                     ui.button(
                         label,
                         icon=icon,
                         on_click=lambda r=route: ui.navigate.to(r)
-                    ).props("flat dense").style(
-                        f"background-color: transparent; color: {scheme['text_secondary']}; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
-                    )
+                    ).props("flat dense").style(btn_style)
 
                 # Divider
                 ui.separator().props("vertical").style(f"height: 24px; background-color: {scheme['border_light']}; margin: 0 0.5rem;")
@@ -357,13 +366,10 @@ def render_header():
 
 
 def render_section_header(page_title: str, current_theme, scheme, right_content=None):
-    """Render a sticky section header bar with page title and optional right-side content."""
-    section_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 2rem; position: sticky; top: 0; z-index: 99;"
+    """Render a sticky section header bar - minimal, just for spacing and active tab highlight."""
+    section_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.5rem 2rem; position: sticky; top: 0; z-index: 99;"
     with ui.element("div").style(section_style):
-        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
-            ui.label(page_title).style(
-                f"font-family: 'Merriweather', Georgia, serif; font-size: 1.5rem; font-weight: 700; color: {scheme['text_primary']};"
-            )
+        with ui.row().classes("w-full max-w-7xl mx-auto justify-end items-center"):
             if right_content:
                 right_content()
 
@@ -1429,7 +1435,7 @@ def render_voice_studio_header():
     with ui.header().classes("").style(header_style):
         with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
             with ui.row().classes("items-center gap-4"):
-                ui.label("🔊 Voice Studio").style(
+                ui.label("Story Forge").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
                 )
 
