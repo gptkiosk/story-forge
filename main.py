@@ -295,15 +295,15 @@ def render_header():
     # Get theme styles
     scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    # Header with warm styling
-    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 1.5rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
+    # Header with warm styling - larger site name, consistent 2rem padding
+    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 1rem 2rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
 
     with ui.header().classes("").style(header_style):
-        with ui.row().classes("w-full justify-between items-center"):
+        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
             with ui.row().classes("items-center gap-4"):
-                # App title in serif font
+                # App title - large and prominent with Caveat
                 ui.label(APP_TITLE).style(
-                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
+                    f"font-family: 'Caveat', 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']}; letter-spacing: -0.02em;"
                 )
 
                 # Dev mode indicator
@@ -315,10 +315,10 @@ def render_header():
             with ui.row().classes("items-center gap-1"):
                 # Navigation buttons - warm ghost style
                 nav_buttons = [
-                    ("Dashboard", "dashboard", "/dashboard"),
-                    ("Books", "library_books", "/books"),
-                    ("Voice Studio", "record_voice_over", "/voice-studio"),
-                    ("Backups", "backup", "/backups"),
+                    ("Dashboard", "o_dashboard", "/dashboard"),
+                    ("Books", "o_library_books", "/books"),
+                    ("Voice Studio", "o_record_voice_over", "/voice-studio"),
+                    ("Backups", "o_backup", "/backups"),
                 ]
 
                 for label, icon, route in nav_buttons:
@@ -347,6 +347,25 @@ def render_header():
                     ui.avatar(source=user_avatar, size="sm").style("margin-left: 0.5rem;")
                 else:
                     ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm").style("margin-left: 0.5rem;")
+
+    # Section header bar - sticky, shows current page title
+    section_header_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 2rem; position: sticky; top: 0; z-index: 99;"
+
+    with ui.element("div").style(section_header_style):
+        with ui.row().classes("w-full max-w-7xl mx-auto items-center"):
+            yield  # Page-specific section title injected here
+
+
+def render_section_header(page_title: str, current_theme, scheme, right_content=None):
+    """Render a sticky section header bar with page title and optional right-side content."""
+    section_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 2rem; position: sticky; top: 0; z-index: 99;"
+    with ui.element("div").style(section_style):
+        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
+            ui.label(page_title).style(
+                f"font-family: 'Merriweather', Georgia, serif; font-size: 1.5rem; font-weight: 700; color: {scheme['text_primary']};"
+            )
+            if right_content:
+                right_content()
 
 
 def _toggle_theme():
@@ -504,6 +523,7 @@ def create_app():
 
         # Header
         render_header()
+        render_section_header("Dashboard", current_theme, scheme)
 
         # Get random writers' quote
         quote = preferences.get_random_quote()
@@ -647,24 +667,25 @@ def create_app():
         # Header
         render_header()
 
+        # Section header with New Book button
+        def new_book_btn():
+            with ui.button(
+                "New Book",
+                icon="o_add",
+                on_click=lambda: ui.navigate.to("/books/new")
+            ).classes("").style(ui_theme.button_primary_styles()):
+                pass
+
+        render_section_header("Your Books", current_theme, scheme, right_content=new_book_btn)
+
         # Page background with scrollable content
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 112px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
             with ui.column().classes("w-full max-w-6xl mx-auto p-8").style(
                 f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_light']}; border-radius: 20px;"
             ):
-                with ui.row().classes("justify-between items-center w-full mb-6"):
-                    ui.label("Your Books").style(
-                        f"font-family: 'Merriweather', Georgia, serif; font-size: 3rem; font-weight: 800; color: {scheme['text_primary']}; letter-spacing: -0.02em;"
-                    )
-                    with ui.button(
-                        "New Book",
-                        icon="o_add",
-                        on_click=lambda: ui.navigate.to("/books/new")
-                    ).classes("").style(ui_theme.button_primary_styles()):
-                        pass
 
                 # Search and filter bar - warm card style
                 with ui.card().classes("w-full mb-6").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1rem;"):
@@ -1033,7 +1054,7 @@ def create_app():
                     with ui.column().classes("w-full gap-3"):
                         for i, chapter in enumerate(chapters, 1):
                             with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                                with ui.row().classes("w-full justify-between items-center"):
+                                with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                                     with ui.column():
                                         ui.label(f"Chapter {chapter.order}: {chapter.title}").style(
                                             f"font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']};"
@@ -1288,7 +1309,7 @@ def create_app():
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
-                with ui.row().classes("w-full justify-between items-center"):
+                with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                     ui.label(f"Edit Chapter: {chapter.title}").style(
                         f"font-family: 'Merriweather', Georgia, serif; font-size: 1.75rem; font-weight: 700; color: {scheme['text_primary']};"
                     )
@@ -1403,10 +1424,10 @@ def render_voice_studio_header():
     # Get theme styles
     scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 1.5rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
+    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 1rem 2rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
 
     with ui.header().classes("").style(header_style):
-        with ui.row().classes("w-full justify-between items-center"):
+        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
             with ui.row().classes("items-center gap-4"):
                 ui.label("🔊 Voice Studio").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -1513,7 +1534,7 @@ def voice_studio_page():
                     with ui.column().classes("w-full gap-4"):
                         for book in books:
                             with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                                with ui.row().classes("w-full justify-between items-center"):
+                                with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                                     with ui.column():
                                         ui.label(book.title).style(
                                             f"font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; font-weight: 600; color: {scheme['text_primary']};"
@@ -1555,7 +1576,7 @@ def voice_studio_book_page(book_id: int):
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-            with ui.row().classes("w-full justify-between items-center"):
+            with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                 ui.label(f"Voice Studio: {book.title}").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 1.75rem; font-weight: 700; color: {scheme['text_primary']};"
                 )
@@ -1585,7 +1606,7 @@ def voice_studio_book_page(book_id: int):
                 if character_voices:
                     for cv in character_voices:
                         with ui.card().classes("w-full mb-3").style(f"background-color: {scheme['bg_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 1rem;"):
-                            with ui.row().classes("w-full justify-between items-center"):
+                            with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                                 with ui.column():
                                     ui.label(cv.character_name).style(f"font-weight: 600; color: {scheme['text_primary']};")
                                     if cv.voice_name:
@@ -1616,7 +1637,7 @@ def voice_studio_book_page(book_id: int):
                 with ui.column().classes("w-full gap-3"):
                     for chapter in chapters:
                         with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                            with ui.row().classes("w-full justify-between items-center"):
+                            with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                                 with ui.column():
                                     ui.label(f"Chapter {chapter.order}: {chapter.title}").style(f"font-weight: 600; color: {scheme['text_primary']};")
                                     ui.label(f"{chapter.word_count:,} words").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
@@ -1676,7 +1697,7 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
     render_voice_studio_header()
 
     with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-        with ui.row().classes("w-full justify-between items-center"):
+        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
             ui.label(f"Narrate: {chapter.title}").classes("text-2xl font-bold")
             ui.button(
                 "← Back to Book",
@@ -1835,7 +1856,7 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
 
                 for job in chapter.tts_jobs:
                     with ui.card().classes("w-full p-4 mb-3").style(f"background-color: {scheme['bg_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
-                        with ui.row().classes("w-full justify-between items-center"):
+                        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                             with ui.column():
                                 ui.label(f"Provider: {job.provider.value.title()}").classes("font-semibold")
                                 ui.label(f"Voice: {job.voice_id}").style(f"font-size: 0.875rem; color: {scheme['text_muted']}")
@@ -1898,20 +1919,20 @@ def backups_page():
     # Use the main header
     render_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+    def backup_btn():
+        with ui.button(
+            "Create Backup",
+            icon="o_backup",
+            on_click=lambda: _create_backup()
+        ).classes("").style(ui_theme.button_primary_styles()):
+            pass
+
+    render_section_header("Backup Management", current_theme, scheme, right_content=backup_btn)
+
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 112px); overflow-y: auto;"
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.label("Backup Management").style(
-                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
-                )
-                with ui.button(
-                    "Create Backup",
-                    icon="o_backup",
-                    on_click=lambda: _create_backup()
-                ).classes("").style(ui_theme.button_primary_styles()):
-                    pass
 
             # Backup info
             last_backup = backup.get_last_backup_info()
@@ -1939,7 +1960,7 @@ def backups_page():
                 with ui.column().classes("w-full gap-3"):
                     for bk in backups[:10]:  # Show max 10
                         with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
-                            with ui.row().classes("w-full justify-between items-center"):
+                            with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
                                 with ui.column():
                                     ui.label(bk.get("book_title", "Unknown")).style(f"font-weight: 600; color: {scheme['text_primary']};")
                                     ui.label(f"Created: {bk.get('created_at', 'unknown')}").style(f"font-size: 0.875rem; color: {scheme['text_muted']};")
