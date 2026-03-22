@@ -264,6 +264,16 @@ def recalculate_book_word_count(book_id: int) -> int:
 
 def render_header():
     """Render the common header with navigation - warm studio theme."""
+    # Load Material Symbols Outlined font for line-art icons
+    ui.add_head_html('''
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
+        <style>
+            html, body { overflow: hidden; height: 100vh; }
+            .scrollable-pane { overflow-y: auto; height: 100%; }
+            .q-page-container { overflow: hidden !important; }
+        </style>
+    ''')
+
     user_email = auth.get_session("user_email", "")
     user_avatar = auth.get_session("user_avatar", "")
     user_id = auth.get_session("user_id")
@@ -412,7 +422,7 @@ def create_app():
                 with ui.button(
                     "Sign in with Google",
                     on_click=go_to_google,
-                    icon="login"
+                    icon="o_login"
                 ).classes("w-full mt-4").style(ui_theme.button_primary_styles()):
                     pass
 
@@ -568,19 +578,19 @@ def create_app():
                     with ui.row().classes("gap-4 flex-wrap"):
                         with ui.button(
                             "New Book",
-                            icon="add",
+                            icon="o_add",
                             on_click=lambda: ui.navigate.to("/books/new")
                         ).classes("").style(ui_theme.button_primary_styles()):
                             pass
                         with ui.button(
                             "View All Books",
-                            icon="library_books",
+                            icon="o_library_books",
                             on_click=lambda: ui.navigate.to("/books")
                         ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
                             pass
                         with ui.button(
                             "Voice Studio",
-                            icon="record_voice_over",
+                            icon="o_record_voice_over",
                             on_click=lambda: ui.navigate.to("/voice-studio")
                         ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
                             pass
@@ -624,7 +634,7 @@ def create_app():
                     )
                     with ui.button(
                         "New Book",
-                        icon="add",
+                        icon="o_add",
                         on_click=lambda: ui.navigate.to("/books/new")
                     ).classes("").style(ui_theme.button_primary_styles()):
                         pass
@@ -666,7 +676,7 @@ def create_app():
 
                         with ui.button(
                             "Search",
-                            icon="search",
+                            icon="o_search",
                             on_click=apply_filters
                         ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
                             pass
@@ -724,13 +734,13 @@ def create_app():
                                     with ui.row().classes("gap-2"):
                                         with ui.button(
                                             "View",
-                                            icon="visibility",
+                                            icon="o_visibility",
                                             on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}")
                                         ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                                             pass
                                         with ui.button(
                                             "Edit",
-                                            icon="edit",
+                                            icon="o_edit",
                                             on_click=lambda b=book: ui.navigate.to(f"/book/{b.id}/edit")
                                         ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                                             pass
@@ -747,7 +757,7 @@ def create_app():
                         )
                         with ui.button(
                             "Create Your First Book",
-                            icon="add",
+                            icon="o_add",
                             on_click=lambda: ui.navigate.to("/books/new")
                         ).classes("").style(ui_theme.button_primary_styles()):
                             pass
@@ -763,7 +773,7 @@ def create_app():
                                 prev_params["status"] = status
                             with ui.button(
                                 "Previous",
-                                icon="chevron_left",
+                                icon="o_chevron_left",
                                 on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(prev_params)}")
                             ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                                 pass
@@ -780,7 +790,7 @@ def create_app():
                                 next_params["status"] = status
                             with ui.button(
                                 "Next",
-                                icon="chevron_right",
+                                icon="o_chevron_right",
                                 on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(next_params)}")
                             ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                                 pass
@@ -793,7 +803,7 @@ def create_app():
                                 next_params["status"] = status
                             ui.button(
                                 "Next",
-                                icon="chevron_right",
+                                icon="o_chevron_right",
                                 on_click=lambda: ui.navigate.to(f"/books?{urllib_parse.urlencode(next_params)}")
                             ).props("flat")
 
@@ -829,9 +839,9 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
                 ui.label("New Book").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -930,9 +940,9 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
                 # Book header - warm card
                 with ui.card().classes("w-full").style(ui_theme.card_styles(current_theme)):
@@ -970,13 +980,13 @@ def create_app():
                     with ui.row().classes("mt-4 gap-2"):
                         with ui.button(
                             "Edit Book",
-                            icon="edit",
+                            icon="o_edit",
                             on_click=lambda: ui.navigate.to(f"/book/{book_id}/edit")
                         ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
                             pass
                         with ui.button(
                             "Delete",
-                            icon="delete",
+                            icon="o_delete",
                             on_click=lambda: confirm_delete_book(book_id)
                         ).classes("").style("background-color: transparent; color: #CA8B8B; border: none; border-radius: 9999px; padding: 0.5rem 1rem;"):
                             pass
@@ -988,7 +998,7 @@ def create_app():
                     )
                     with ui.button(
                         "Add Chapter",
-                        icon="add",
+                        icon="o_add",
                         on_click=lambda: ui.navigate.to(f"/book/{book_id}/chapter/new")
                     ).classes("").style(ui_theme.button_primary_styles()):
                         pass
@@ -1008,12 +1018,12 @@ def create_app():
 
                                     with ui.row().classes("gap-2"):
                                         with ui.button(
-                                            icon="edit",
+                                            icon="o_edit",
                                             on_click=lambda c=chapter: ui.navigate.to(f"/book/{book_id}/chapter/{c.id}/edit")
                                         ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                                             pass
                                         with ui.button(
-                                            icon="delete",
+                                            icon="o_delete",
                                             on_click=lambda c=chapter: confirm_delete_chapter(c.id)
                                         ).classes("").style("background-color: transparent; color: #CA8B8B; border: none;"):
                                             pass
@@ -1023,7 +1033,7 @@ def create_app():
                         ui.label("No chapters yet").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
                         with ui.button(
                             "Add Your First Chapter",
-                            icon="add",
+                            icon="o_add",
                             on_click=lambda: ui.navigate.to(f"/book/{book_id}/chapter/new")
                         ).classes("").style(ui_theme.button_primary_styles()):
                             pass
@@ -1067,9 +1077,9 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
                 ui.label("Edit Book").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -1166,9 +1176,9 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
                 ui.label(f"New Chapter for {book.title}").style(
                     f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -1247,9 +1257,9 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-        with ui.column().classes("w-full").style(page_style):
+        with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
                 with ui.row().classes("w-full justify-between items-center"):
                     ui.label(f"Edit Chapter: {chapter.title}").style(
@@ -1257,7 +1267,7 @@ def create_app():
                     )
                     with ui.button(
                         "Back to Book",
-                        icon="arrow_back",
+                        icon="o_arrow_back",
                         on_click=lambda: ui.navigate.to(f"/book/{book_id}")
                     ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                         pass
@@ -1341,6 +1351,15 @@ def get_voice_for_provider(character: CharacterVoice, provider: TTSProviderType)
 
 def render_voice_studio_header():
     """Render the Voice Studio header with navigation - theme-aware."""
+    # Load Material Symbols Outlined font for line-art icons
+    ui.add_head_html('''
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
+        <style>
+            html, body { overflow: hidden; height: 100vh; }
+            .scrollable-pane { overflow-y: auto; height: 100%; }
+            .q-page-container { overflow: hidden !important; }
+        </style>
+    ''')
     user_email = auth.get_session("user_email", "")
     user_avatar = auth.get_session("user_avatar", "")
     user_id = auth.get_session("user_id")
@@ -1414,9 +1433,9 @@ def voice_studio_page():
 
     render_voice_studio_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-    with ui.column().classes("w-full").style(page_style):
+    with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
             ui.label("Voice Studio").style(
                 f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -1457,7 +1476,7 @@ def voice_studio_page():
                         ui.label("No books found").style(f"color: {scheme['text_muted']}; text-align: center; padding: 2rem;")
                         with ui.button(
                             "Create Your First Book",
-                            icon="add",
+                            icon="o_add",
                             on_click=lambda: ui.navigate.to("/books/new")
                         ).classes("").style(ui_theme.button_primary_styles()):
                             pass
@@ -1475,7 +1494,7 @@ def voice_studio_page():
                                         )
                                     with ui.button(
                                         "Narrate Book",
-                                        icon="play_arrow",
+                                        icon="o_play_arrow",
                                         on_click=lambda b=book: ui.navigate.to(f"/voice-studio/book/{b.id}")
                                     ).classes("").style(ui_theme.button_primary_styles()):
                                         pass
@@ -1503,9 +1522,9 @@ def voice_studio_book_page(book_id: int):
 
     render_voice_studio_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-    with ui.column().classes("w-full").style(page_style):
+    with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label(f"Voice Studio: {book.title}").style(
@@ -1513,7 +1532,7 @@ def voice_studio_book_page(book_id: int):
                 )
                 with ui.button(
                     "← Back to Voice Studio",
-                    icon="arrow_back",
+                    icon="o_arrow_back",
                     on_click=lambda: ui.navigate.to("/voice-studio")
                 ).classes("").style(ui_theme.button_ghost_styles(current_theme)):
                     pass
@@ -1592,7 +1611,7 @@ def voice_studio_book_page(book_id: int):
 
                                     with ui.button(
                                         "Narrate",
-                                        icon="play_arrow",
+                                        icon="o_play_arrow",
                                         on_click=lambda c=chapter: ui.navigate.to(f"/voice-studio/book/{book_id}/chapter/{c.id}")
                                     ).classes("").style(ui_theme.button_primary_styles()):
                                         pass
@@ -1624,26 +1643,26 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
             ui.label(f"Narrate: {chapter.title}").classes("text-2xl font-bold")
             ui.button(
                 "← Back to Book",
-                icon="arrow_back",
+                icon="o_arrow_back",
                 on_click=lambda: ui.navigate.to(f"/voice-studio/book/{book_id}")
             ).props("flat")
 
         # Chapter preview
-        with ui.card().classes("w-full mt-4 p-6"):
+        with ui.card().classes("w-full mt-4 p-6").style(f"border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
             ui.label(f"Chapter {chapter.order}").classes("text-sm text-gray-500")
             ui.label(chapter.title).classes("text-xl font-semibold")
             ui.label(f"{chapter.word_count:,} words").classes("text-sm text-gray-500")
 
             if chapter.content:
                 preview = chapter.content[:500] + "..." if len(chapter.content) > 500 else chapter.content
-                with ui.card().classes("w-full mt-4 p-4 bg-gray-50"):
+                with ui.card().classes("w-full mt-4 p-4").style(f"background-color: {scheme['bg_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
                     ui.label("Content Preview:").classes("text-sm font-semibold")
                     ui.label(preview).classes("text-sm")
 
         # Provider selection
         providers = tts.tts_manager.get_available_providers()
 
-        with ui.card().classes("w-full mt-6 p-6"):
+        with ui.card().classes("w-full mt-6 p-6").style(f"border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
             ui.label("Narrate Chapter").classes("text-lg font-semibold mb-4")
 
             # Provider selector
@@ -1774,11 +1793,11 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
 
         # Existing TTS jobs
         if chapter.tts_jobs:
-            with ui.card().classes("w-full mt-6 p-6"):
+            with ui.card().classes("w-full mt-6 p-6").style(f"border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
                 ui.label("Previous Narrations").classes("text-lg font-semibold mb-4")
 
                 for job in chapter.tts_jobs:
-                    with ui.card().classes("w-full p-4 mb-3 bg-gray-50"):
+                    with ui.card().classes("w-full p-4 mb-3").style(f"background-color: {scheme['bg_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 16px;"):
                         with ui.row().classes("w-full justify-between items-center"):
                             with ui.column():
                                 ui.label(f"Provider: {job.provider.value.title()}").classes("font-semibold")
@@ -1842,9 +1861,9 @@ def backups_page():
     # Use the main header
     render_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; min-height: 100vh;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
 
-    with ui.column().classes("w-full").style(page_style):
+    with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
             with ui.row().classes("w-full justify-between items-center"):
                 ui.label("Backup Management").style(
@@ -1852,7 +1871,7 @@ def backups_page():
                 )
                 with ui.button(
                     "Create Backup",
-                    icon="backup",
+                    icon="o_backup",
                     on_click=lambda: _create_backup()
                 ).classes("").style(ui_theme.button_primary_styles()):
                     pass
@@ -1896,13 +1915,13 @@ def backups_page():
                                     # Restore button
                                     with ui.button(
                                         "Restore",
-                                        icon="restore",
+                                        icon="o_restore",
                                         on_click=lambda b=bk: _confirm_restore(b)
                                     ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
                                         pass
                                     # Delete button
                                     with ui.button(
-                                        icon="delete",
+                                        icon="o_delete",
                                         on_click=lambda b=bk: _confirm_delete_backup(b)
                                     ).classes("").style("background-color: transparent; color: #CA8B8B; border: none;"):
                                         pass
