@@ -353,7 +353,7 @@ def render_header():
 
     with ui.element("div").style(section_header_style):
         with ui.row().classes("w-full max-w-7xl mx-auto items-center"):
-            yield  # Page-specific section title injected here
+            pass  # Section title rendered per-page via render_section_header()
 
 
 def render_section_header(page_title: str, current_theme, scheme, right_content=None):
