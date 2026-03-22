@@ -26,7 +26,7 @@ class Theme:
         "bg_primary": "#FDF8F3",
         "bg_secondary": "#F7F1EB",
         "bg_card": "#FFFFFF",
-        "bg_header": "#FFFFFF",
+        "bg_header": "#FDF8F3",
         "bg_input": "#FFFFFF",
         "bg_hover": "#F5EFE8",
         "bg_selected": "#EDE6DD",

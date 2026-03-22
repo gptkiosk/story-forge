@@ -651,7 +651,9 @@ def create_app():
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
-            with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+            with ui.column().classes("w-full max-w-6xl mx-auto p-8").style(
+                f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 20px; margin-top: 1rem;"
+            ):
                 with ui.row().classes("justify-between items-center w-full mb-6"):
                     ui.label("Your Books").style(
                         f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
@@ -667,9 +669,8 @@ def create_app():
                 with ui.card().classes("w-full mb-6").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1rem;"):
                     with ui.row().classes("w-full gap-4 items-center"):
                         search_input = ui.input(
-                            label="Search books...",
                             value=search or "",
-                            placeholder="Type to search..."
+                            placeholder="Search books..."
                         ).classes("flex-1").style(
                             f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; padding: 0.75rem 1rem; text-align: center;"
                         )
@@ -686,7 +687,7 @@ def create_app():
                             options=status_options,
                             value=status if status else None,
                         ).classes("w-48").style(
-                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; text-align: center;"
                         )
 
                         def apply_filters():
