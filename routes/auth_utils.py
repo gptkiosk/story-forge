@@ -5,7 +5,8 @@ For review/development mode - allows access without OAuth
 import os
 
 # Check if we're in review mode (no auth required)
-REVIEW_MODE = os.environ.get("REVIEW_MODE", "true").lower() == "true"
+_REVIEW_MODE = os.environ.get("REVIEW_MODE", "true").lower()
+REVIEW_MODE = _REVIEW_MODE in ("true", "1", "yes")
 
 # Default user ID for review mode
 DEFAULT_USER_ID = "1"
