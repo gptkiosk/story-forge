@@ -685,6 +685,14 @@ def create_app():
                 f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_light']}; border-radius: 20px;"
             ):
 
+                # Section title and description
+                ui.label("Your Books").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+                )
+                ui.label("Browse and manage your book collection").style(
+                    f"font-size: 1rem; color: {scheme['text_muted']}; margin-bottom: 1.5rem;"
+                )
+
                 # Search and filter bar - warm card style
                 with ui.card().classes("w-full mb-6").style(f"background-color: {scheme['bg_card']}; border: 1px solid {scheme['border_light']}; border-radius: 16px; padding: 1rem;"):
                     with ui.row().classes("w-full gap-4 items-center"):
@@ -1859,6 +1867,14 @@ def backups_page():
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
+
+            # Section title and description
+            ui.label("Backup Management").style(
+                f"font-family: 'Merriweather', Georgia, serif; font-size: 2rem; font-weight: 700; color: {scheme['text_primary']};"
+            )
+            ui.label("Protect your work with automatic backups").style(
+                f"font-size: 1rem; color: {scheme['text_muted']}; margin-bottom: 1.5rem;"
+            )
 
             # Backup info
             last_backup = backup.get_last_backup_info()
