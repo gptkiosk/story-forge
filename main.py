@@ -1402,81 +1402,6 @@ def get_voice_for_provider(character: CharacterVoice, provider: TTSProviderType)
     return character.elevenlabs_voice_id or ""
 
 
-def render_voice_studio_header():
-    """Render the Voice Studio header with navigation - theme-aware."""
-    # Load Material Symbols Outlined font for line-art icons
-    ui.add_head_html('''
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
-        <style>
-            html, body { overflow: hidden; height: 100vh; background-color: var(--bg-body); }
-            body { margin: 0; padding: 0; }
-            .scrollable-pane { overflow-y: auto; height: 100%; }
-            .q-page-container { overflow: hidden !important; }
-        </style>
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const isDark = document.body.classList.contains('dark');
-                document.documentElement.style.setProperty('--bg-body', isDark ? '#1A1816' : '#FDF8F3');
-            });
-        </script>
-    ''')
-    user_email = auth.get_session("user_email", "")
-    user_avatar = auth.get_session("user_avatar", "")
-    user_id = auth.get_session("user_id")
-
-    # Get current theme
-    current_theme = preferences.Theme.LIGHT
-    if user_id:
-        current_theme = preferences.get_theme_for_user(user_id)
-
-    theme_icon = "dark_mode" if current_theme == preferences.Theme.LIGHT else "light_mode"
-    theme_label = "Dark Mode" if current_theme == preferences.Theme.LIGHT else "Light Mode"
-
-    # Get theme styles
-    scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
-
-    header_style = f"background-color: {scheme['bg_header']}; border-bottom: 1px solid {scheme['border_light']}; padding: 1rem 2rem; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100;"
-
-    with ui.header().classes("").style(header_style):
-        with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
-            with ui.row().classes("items-center gap-4"):
-                ui.label("Story Forge").style(
-                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 700; color: {scheme['text_primary']};"
-                )
-
-            with ui.row().classes("items-center gap-1"):
-                nav_buttons = [
-                    ("Dashboard", "dashboard", "/dashboard"),
-                    ("Books", "library_books", "/books"),
-                    ("Voice Studio", "record_voice_over", "/voice-studio"),
-                    ("Backups", "backup", "/backups"),
-                ]
-
-                for label, icon, route in nav_buttons:
-                    ui.button(
-                        label,
-                        icon=icon,
-                        on_click=lambda r=route: ui.navigate.to(r)
-                    ).props("flat dense").style(
-                        f"background-color: transparent; color: {scheme['text_secondary']}; border: none; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
-                    )
-
-                ui.separator().props("vertical").style(f"height: 24px; background-color: {scheme['border_light']}; margin: 0 0.5rem;")
-
-                ui.button(
-                    theme_label,
-                    icon=theme_icon,
-                    on_click=lambda: _toggle_theme()
-                ).props("flat dense").style(
-                    f"background-color: {scheme['bg_secondary']}; color: {scheme['text_secondary']}; border: 1px solid {scheme['border_light']}; border-radius: 9999px; padding: 0.5rem 1rem; font-weight: 500; font-size: 0.875rem;"
-                )
-
-                if user_avatar:
-                    ui.avatar(source=user_avatar, size="sm").style("margin-left: 0.5rem;")
-                else:
-                    ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm").style("margin-left: 0.5rem;")
-
-
 @ui.page("/voice-studio")
 def voice_studio_page():
     """Voice Studio - main page for TTS management - warm studio theme."""
@@ -1491,7 +1416,7 @@ def voice_studio_page():
 
     scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    render_voice_studio_header()
+    render_header()
 
     page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
@@ -1581,7 +1506,7 @@ def voice_studio_book_page(book_id: int):
         ui.navigate.to("/voice-studio")
         return
 
-    render_voice_studio_header()
+    render_header()
 
     page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
@@ -1705,7 +1630,7 @@ def voice_studio_chapter_page(book_id: int, chapter_id: int):
 
     scheme = preferences.Theme.SCHEMES.get(current_theme, preferences.Theme.SCHEMES[preferences.Theme.LIGHT])
 
-    render_voice_studio_header()
+    render_header()
 
     with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
         with ui.row().classes("w-full max-w-7xl mx-auto justify-between items-center"):
