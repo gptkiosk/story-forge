@@ -2,7 +2,10 @@
 Books routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
-from schemas import BookCreate, BookUpdate, BookResponse, BooksListResponse, ChapterCreate
+from schemas import (
+    BookCreate, BookUpdate, BookResponse, BooksListResponse, ChapterCreate,
+    to_book_response, to_book_list_response, to_chapter_response
+)
 from db_helpers import (
     get_all_books, get_book_by_id, create_book, update_book, delete_book,
     get_chapters_for_book, create_chapter, recalculate_book_word_count
@@ -26,7 +29,7 @@ def list_books(request: Request, page: int = 1, search: str = "", status: str = 
     )
 
     return BooksListResponse(
-        books=[BookResponse(**b.__dict__) for b in books],
+        books=[to_book_list_response(b) for b in books],
         total=total,
         page=page,
         per_page=ITEMS_PER_PAGE
@@ -42,7 +45,7 @@ def get_book(request: Request, book_id: int):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
-    return BookResponse(**book.__dict__)
+    return to_book_response(book)
 
 
 @router.post("", response_model=BookResponse)
@@ -52,12 +55,12 @@ def create_book_route(request: Request, book: BookCreate):
 
     new_book = create_book(
         title=book.title,
-        description=book.synopsis,
-        author=book.author,
+        description=book.description or book.synopsis or "",
+        author=book.author or "",
         status=book.status.value if book.status else "draft"
     )
 
-    return BookResponse(**new_book.__dict__)
+    return to_book_response(new_book)
 
 
 @router.put("/{book_id}", response_model=BookResponse)
@@ -71,22 +74,16 @@ def update_book_route(request: Request, book_id: int, book: BookUpdate):
         kwargs["title"] = book.title
     if book.author is not None:
         kwargs["author"] = book.author
-    if book.genre is not None:
-        kwargs["genre"] = book.genre
-    if book.synopsis is not None:
-        kwargs["synopsis"] = book.synopsis
+    if book.description is not None:
+        kwargs["description"] = book.description
     if book.status is not None:
-        kwargs["status"] = book.status.value
-    if book.notes is not None:
-        kwargs["notes"] = book.notes
-    if book.cover_image is not None:
-        kwargs["cover_image"] = book.cover_image
+        kwargs["status"] = book.status
 
     updated = update_book(book_id, **kwargs)
     if not updated:
         raise HTTPException(status_code=404, detail="Book not found")
 
-    return BookResponse(**updated.__dict__)
+    return to_book_response(updated)
 
 
 @router.delete("/{book_id}")
@@ -107,15 +104,7 @@ def get_book_chapters(request: Request, book_id: int):
     require_auth(request)
 
     chapters = get_chapters_for_book(book_id)
-    return [{
-        "id": c.id,
-        "title": c.title,
-        "order": c.order,
-        "word_count": c.word_count,
-        "status": c.status.value if hasattr(c.status, 'value') else c.status,
-        "created_at": c.created_at,
-        "updated_at": c.updated_at
-    } for c in chapters]
+    return [to_chapter_response(c) for c in chapters]
 
 
 @router.post("/{book_id}/chapters")
@@ -137,12 +126,4 @@ def create_book_chapter(request: Request, book_id: int, chapter: ChapterCreate):
     # Recalculate word count
     recalculate_book_word_count(book_id)
 
-    return {
-        "id": new_chapter.id,
-        "title": new_chapter.title,
-        "order": new_chapter.order,
-        "word_count": new_chapter.word_count,
-        "status": new_chapter.status.value if hasattr(new_chapter.status, 'value') else new_chapter.status,
-        "created_at": str(new_chapter.created_at),
-        "updated_at": str(new_chapter.updated_at)
-    }
+    return to_chapter_response(new_chapter)
