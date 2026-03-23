@@ -681,7 +681,7 @@ def create_app():
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
             with ui.column().classes("w-full max-w-6xl mx-auto p-8").style(
-                f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_light']}; border-radius: 20px;"
+                f"background-color: {scheme['bg_card']}; border: 2px solid {scheme['border_light']}; border-radius: 20px; min-height: calc(100vh - 140px);"
             ):
 
                 # Section title and description

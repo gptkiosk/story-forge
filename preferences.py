@@ -95,8 +95,8 @@ class Theme:
         "accent_purple": "#B4A8CC",
 
         # Borders
-        "border_light": "#3D3933",
-        "border_medium": "#524B43",
+        "border_light": "#5A534A",
+        "border_medium": "#6B635A",
 
         # Status
         "status_draft": "#A8A099",
