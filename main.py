@@ -365,13 +365,14 @@ def render_header():
             pass  # Section title rendered per-page via render_section_header()
 
 
-def render_section_header(page_title: str, current_theme, scheme, right_content=None):
-    """Render a sticky section header bar - minimal, just for spacing and active tab highlight."""
+def render_section_header(current_theme, scheme, right_content=None):
+    """Render a sticky section header bar - only renders if there's right content to show."""
+    if not right_content:
+        return  # No section header needed when there's no content to show
     section_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.5rem 2rem; position: sticky; top: 0; z-index: 99;"
     with ui.element("div").style(section_style):
         with ui.row().classes("w-full max-w-7xl mx-auto justify-end items-center"):
-            if right_content:
-                right_content()
+            right_content()
 
 
 def _toggle_theme():
@@ -529,13 +530,13 @@ def create_app():
 
         # Header
         render_header()
-        render_section_header("Dashboard", current_theme, scheme)
+        render_section_header(current_theme, scheme)
 
         # Get random writers' quote
         quote = preferences.get_random_quote()
 
         # Page background with scrollable content
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Page content
@@ -682,10 +683,10 @@ def create_app():
             ).classes("").style(ui_theme.button_primary_styles()):
                 pass
 
-        render_section_header("Your Books", current_theme, scheme, right_content=new_book_btn)
+        render_section_header(current_theme, scheme, right_content=new_book_btn)
 
         # Page background with scrollable content
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 112px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             # Books content
@@ -892,7 +893,7 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
@@ -993,7 +994,7 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
@@ -1131,7 +1132,7 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
@@ -1230,7 +1231,7 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-2xl mx-auto p-8"):
@@ -1311,7 +1312,7 @@ def create_app():
 
         render_header()
 
-        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+        page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
         with ui.column().classes("w-full scrollable-pane").style(page_style):
             with ui.column().classes("w-full max-w-4xl mx-auto p-8"):
@@ -1488,7 +1489,7 @@ def voice_studio_page():
 
     render_voice_studio_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
@@ -1578,7 +1579,7 @@ def voice_studio_book_page(book_id: int):
 
     render_voice_studio_header()
 
-    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 60px); overflow-y: auto;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
@@ -1933,9 +1934,9 @@ def backups_page():
         ).classes("").style(ui_theme.button_primary_styles()):
             pass
 
-    render_section_header("Backup Management", current_theme, scheme, right_content=backup_btn)
+    render_section_header(current_theme, scheme, right_content=backup_btn)
 
-    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 112px); overflow-y: auto;"
+    page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
         with ui.column().classes("w-full max-w-6xl mx-auto p-8"):
