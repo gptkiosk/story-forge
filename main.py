@@ -676,17 +676,6 @@ def create_app():
         # Header
         render_header()
 
-        # Section header with New Book button
-        def new_book_btn():
-            with ui.button(
-                "New Book",
-                icon="o_add",
-                on_click=lambda: ui.navigate.to("/books/new")
-            ).classes("").style(ui_theme.button_primary_styles()):
-                pass
-
-        render_section_header(current_theme, scheme, right_content=new_book_btn)
-
         # Page background with scrollable content
         page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
@@ -735,6 +724,13 @@ def create_app():
                             icon="o_search",
                             on_click=apply_filters
                         ).classes("").style(ui_theme.button_secondary_styles(current_theme)):
+                            pass
+
+                        with ui.button(
+                            "New Book",
+                            icon="o_add",
+                            on_click=lambda: ui.navigate.to("/books/new")
+                        ).classes("").style(ui_theme.button_primary_styles()):
                             pass
 
                 # Get books
@@ -1934,16 +1930,6 @@ def backups_page():
     # Use the main header
     render_header()
 
-    def backup_btn():
-        with ui.button(
-            "Create Backup",
-            icon="o_backup",
-            on_click=lambda: _create_backup()
-        ).classes("").style(ui_theme.button_primary_styles()):
-            pass
-
-    render_section_header(current_theme, scheme, right_content=backup_btn)
-
     page_style = f"background-color: {scheme['bg_primary']}; height: calc(100vh - 100px); overflow-y: auto;"
 
     with ui.column().classes("w-full scrollable-pane").style(page_style):
@@ -1959,9 +1945,16 @@ def backups_page():
                     ui.label("No backups yet").style(f"color: {scheme['text_muted']};")
 
             # Backup list
-            ui.label("Available Backups").style(
-                f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']}; margin-top: 2rem; margin-bottom: 1rem;"
-            )
+            with ui.row().classes("w-full justify-between items-center mb-4"):
+                ui.label("Available Backups").style(
+                    f"font-family: 'Merriweather', Georgia, serif; font-size: 1.25rem; font-weight: 600; color: {scheme['text_primary']};"
+                )
+                with ui.button(
+                    "Create Backup",
+                    icon="o_backup",
+                    on_click=lambda: _create_backup()
+                ).classes("").style(ui_theme.button_primary_styles()):
+                    pass
 
             backups = backup.list_backups()
 
@@ -1970,7 +1963,6 @@ def backups_page():
                     ui.image("/static/svg/inkwell.svg").style("width: 60px; height: 60px; margin: 0 auto 1rem; display: block;")
                     ui.label("No backups available").style(f"color: {scheme['text_muted']}; text-align: center; font-family: 'Merriweather', Georgia, serif; font-size: 1.1rem; padding: 0.5rem 0 1rem;")
                     ui.label("Create your first backup to protect your data.").style(f"color: {scheme['text_muted']}; text-align: center; font-size: 0.875rem;")
-                    ui.label("Create your first backup to protect your data.").style("text-align: center; margin-top: 0.5rem;")
             else:
                 with ui.column().classes("w-full gap-3"):
                     for bk in backups[:10]:  # Show max 10
