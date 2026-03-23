@@ -3,10 +3,10 @@ Backups routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
 from .auth_utils import require_auth
+from db import DATABASE_PATH
 import backup as backup_module
 
 router = APIRouter()
-
 
 
 @router.get("")
@@ -27,7 +27,7 @@ def create_backup(request: Request):
     """Create a new backup."""
     require_auth(request)
     try:
-        backup = backup_module.create_backup()
+        backup = backup_module.create_backup(str(DATABASE_PATH))
         return {
             "id": backup["id"],
             "filename": backup["filename"],

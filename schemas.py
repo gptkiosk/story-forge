@@ -207,6 +207,22 @@ def to_book_list_item(book) -> BookListResponse:
     )
 
 
+def to_book_response(book) -> BookResponse:
+    """Convert SQLAlchemy Book to BookResponse with chapters."""
+    chapters = [to_chapter_response(c) for c in book.chapters] if book.chapters else []
+    return BookResponse(
+        id=book.id,
+        title=book.title,
+        description=book.description,
+        author=book.author,
+        status=book.status.value if hasattr(book.status, 'value') else str(book.status),
+        word_count=book.word_count,
+        created_at=book.created_at,
+        updated_at=book.updated_at,
+        chapters=chapters,
+    )
+
+
 def to_chapter_response(chapter) -> ChapterResponse:
     """Convert SQLAlchemy Chapter to ChapterResponse."""
     return ChapterResponse(
