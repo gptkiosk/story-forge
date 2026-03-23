@@ -2,6 +2,7 @@
 Backups routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
+from .auth_utils import require_auth
 import backup as backup_module
 
 router = APIRouter()

@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
 from pydantic import BaseModel
 from db_helpers import get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
+from .auth_utils import require_auth
 
 import tts as tts_module
 
