@@ -277,14 +277,11 @@ def render_header():
             .q-field__native, .q-field__input { color: inherit !important; }
             input::placeholder { color: #9A948D; opacity: 1; }
             input::-webkit-input-placeholder { color: #9A948D; }
-            body { background-color: var(--bg-body) !important; }
 
-            /* Light mode body background */
-            html body { --bg-body: #FDF8F3; }
-
-            /* Dark mode - warm dark brown background that transitions from cream */
-            html.q-dark body,
-            html.body--dark body { --bg-body: #2A2723; background-color: #2A2723 !important; }
+            /* Force dark mode backgrounds */
+            body.q-dark { background-color: #2A2723 !important; }
+            .q-page.q-dark { background-color: #2A2723 !important; }
+            .q-page-container.q-dark { background-color: #2A2723 !important; }
         </style>
     ''')
 
