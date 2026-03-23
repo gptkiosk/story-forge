@@ -65,3 +65,20 @@ def auth_status(request: Request):
     """Check if user is authenticated."""
     user_id = auth_module.auth.get_session("user_id", request)
     return {"authenticated": bool(user_id)}
+
+
+@router.get("/theme")
+def get_theme():
+    """Get current theme preference."""
+    theme = auth_module.auth.get_session("theme", "light")
+    return {"theme": theme}
+
+
+@router.post("/theme")
+def set_theme(body: dict):
+    """Set theme preference (light or dark)."""
+    theme = body.get("theme", "light")
+    if theme not in ("light", "dark"):
+        theme = "light"
+    auth_module.auth.set_session("theme", theme)
+    return {"theme": theme}

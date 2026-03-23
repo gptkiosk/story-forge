@@ -46,6 +46,7 @@ class BookResponse(BookBase):
     id: int
     cover_image: Optional[str] = None
     notes: str = ""
+    word_count: int = 0
     created_at: str
     updated_at: str
 

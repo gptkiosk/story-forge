@@ -2,10 +2,10 @@
 Books routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
-from schemas import BookCreate, BookUpdate, BookResponse, BooksListResponse
+from schemas import BookCreate, BookUpdate, BookResponse, BooksListResponse, ChapterCreate
 from db_helpers import (
     get_all_books, get_book_by_id, create_book, update_book, delete_book,
-    get_chapters_for_book
+    get_chapters_for_book, create_chapter, recalculate_book_word_count
 )
 
 ITEMS_PER_PAGE = 12
@@ -125,3 +125,33 @@ def get_book_chapters(request: Request, book_id: int):
         "created_at": c.created_at,
         "updated_at": c.updated_at
     } for c in chapters]
+
+
+@router.post("/{book_id}/chapters")
+def create_book_chapter(request: Request, book_id: int, chapter: ChapterCreate):
+    """Create a new chapter for a book."""
+    require_auth(request)
+
+    # Verify book exists
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    new_chapter = create_chapter(
+        book_id=book_id,
+        title=chapter.title,
+        order=chapter.order
+    )
+
+    # Recalculate word count
+    recalculate_book_word_count(book_id)
+
+    return {
+        "id": new_chapter.id,
+        "title": new_chapter.title,
+        "order": new_chapter.order,
+        "word_count": new_chapter.word_count,
+        "status": new_chapter.status.value if hasattr(new_chapter.status, 'value') else new_chapter.status,
+        "created_at": str(new_chapter.created_at),
+        "updated_at": str(new_chapter.updated_at)
+    }
