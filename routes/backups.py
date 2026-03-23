@@ -7,15 +7,6 @@ import backup as backup_module
 router = APIRouter()
 
 
-def require_auth(request: Request) -> str:
-    """Require authentication."""
-    from db_helpers import get_session
-    from .auth import auth as auth_module
-    user_id = auth_module.get_session("user_id", request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user_id
-
 
 @router.get("")
 def list_backups(request: Request):

@@ -7,20 +7,11 @@ from db_helpers import (
     get_all_books, get_book_by_id, create_book, update_book, delete_book,
     get_chapters_for_book, create_chapter, recalculate_book_word_count
 )
+from .auth_utils import require_auth
 
 ITEMS_PER_PAGE = 12
 
 router = APIRouter()
-
-
-def require_auth(request: Request) -> str:
-    """Require authentication, return user_id."""
-    from db_helpers import get_session
-    from .auth import auth as auth_module
-    user_id = auth_module.get_session("user_id", request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user_id
 
 
 @router.get("", response_model=BooksListResponse)
