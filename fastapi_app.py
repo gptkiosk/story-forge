@@ -43,6 +43,15 @@ app.include_router(backups_router, prefix="/api/backups", tags=["backups"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
 
 
+@app.on_event("startup")
+def startup_event():
+    """Initialize database tables on startup."""
+    from db import engine, Base
+    # Import all models to register them
+    import db as db_module
+    Base.metadata.create_all(bind=engine)
+
+
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}

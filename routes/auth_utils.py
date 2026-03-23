@@ -14,9 +14,9 @@ DEFAULT_USER_ID = "1"
 
 def get_user_id(request) -> str:
     """Get user ID from session, or return default for review mode."""
-    from auth import auth as auth_module
+    import auth
     
-    user_id = auth_module.get_session("user_id", request)
+    user_id = auth.get_session("user_id", request)
     if not user_id and REVIEW_MODE:
         user_id = DEFAULT_USER_ID
     return user_id
