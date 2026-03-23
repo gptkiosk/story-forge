@@ -3,7 +3,12 @@ Auth routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
-import auth as auth_module
+import auth
+
+import os
+
+# Check if we're in review mode (no auth required)
+REVIEW_MODE = os.environ.get("REVIEW_MODE", "true").lower() == "true"
 
 router = APIRouter()
 
@@ -11,7 +16,7 @@ router = APIRouter()
 @router.get("/login")
 def login():
     """Redirect to Google OAuth login."""
-    login_url = auth_module.auth.get_login_url()
+    login_url = auth.get_login_url()
     return RedirectResponse(url=login_url)
 
 
@@ -25,7 +30,7 @@ def callback(code: str = None, state: str = None, error: str = None):
         raise HTTPException(status_code=400, detail="Missing authorization code")
 
     try:
-        user = auth_module.auth.process_callback(code, state)
+        user = auth.process_callback(code, state)
         if user:
             return RedirectResponse(url="/", status_code=302)
     except Exception as e:
@@ -37,20 +42,29 @@ def callback(code: str = None, state: str = None, error: str = None):
 @router.post("/logout")
 def logout(request: Request):
     """Logout and clear session."""
-    auth_module.auth.clear_session(request)
+    auth.clear_session(request)
     return {"status": "ok"}
 
 
 @router.get("/me")
 def get_current_user(request: Request):
     """Get current authenticated user."""
-    user_id = auth_module.auth.get_session("user_id", request)
+    # For review mode, return demo user
+    if REVIEW_MODE:
+        return {
+            "id": "demo-user",
+            "email": "writer@storyforge.local",
+            "name": "Demo Writer",
+            "avatar": None
+        }
+    
+    user_id = auth.get_session("user_id", request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    user_email = auth_module.auth.get_session("user_email", request) or ""
-    user_name = auth_module.auth.get_session("user_name", request) or user_email.split("@")[0]
-    user_avatar = auth_module.auth.get_session("user_avatar", request) or ""
+    user_email = auth.get_session("user_email", request) or ""
+    user_name = auth.get_session("user_name", request) or user_email.split("@")[0]
+    user_avatar = auth.get_session("user_avatar", request) or ""
 
     return {
         "id": user_id,
@@ -63,22 +77,27 @@ def get_current_user(request: Request):
 @router.get("/status")
 def auth_status(request: Request):
     """Check if user is authenticated."""
-    user_id = auth_module.auth.get_session("user_id", request)
+    if REVIEW_MODE:
+        return {"authenticated": True}
+    user_id = auth.get_session("user_id", request)
     return {"authenticated": bool(user_id)}
 
 
 @router.get("/theme")
-def get_theme():
+def get_theme(request: Request):
     """Get current theme preference."""
-    theme = auth_module.auth.get_session("theme", "light")
+    if REVIEW_MODE:
+        return {"theme": "light"}
+    theme = auth.get_session("theme", request) or "light"
     return {"theme": theme}
 
 
 @router.post("/theme")
-def set_theme(body: dict):
+def set_theme(request: Request, body: dict):
     """Set theme preference (light or dark)."""
     theme = body.get("theme", "light")
     if theme not in ("light", "dark"):
         theme = "light"
-    auth_module.auth.set_session("theme", theme)
+    if not REVIEW_MODE:
+        auth.set_session("theme", theme, request)
     return {"theme": theme}
