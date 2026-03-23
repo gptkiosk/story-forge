@@ -69,22 +69,22 @@ class Theme:
         "radius_full": "9999px",
     }
 
-    # Soft Shaded Dark Mode (not pure black - warm dark brown)
+    # Soft Shaded Dark Mode (warm dark brown, transitions from cream theme)
     DARK_SCHEME = {
         # Backgrounds
-        "bg_primary": "#1A1816",
-        "bg_secondary": "#232019",
-        "bg_card": "#2A2723",
-        "bg_header": "#1F1D1A",
-        "bg_input": "#2A2723",
-        "bg_hover": "#352F2A",
-        "bg_selected": "#3D3630",
+        "bg_primary": "#2A2723",
+        "bg_secondary": "#353028",
+        "bg_card": "#302B26",
+        "bg_header": "#2D2924",
+        "bg_input": "#3A352D",
+        "bg_hover": "#403A31",
+        "bg_selected": "#4A443B",
 
         # Text
         "text_primary": "#F5F0EB",
         "text_secondary": "#A8A099",
-        "text_muted": "#6B6560",
-        "text_inverse": "#1A1816",
+        "text_muted": "#7A756E",
+        "text_inverse": "#FDF8F3",
 
         # Accents
         "accent_primary": "#D4B87A",

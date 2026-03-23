@@ -275,18 +275,17 @@ def render_header():
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
             .q-field__native, .q-field__input { color: inherit !important; }
-            input::placeholder { color: var(--placeholder-color); opacity: 1; }
-            input::-webkit-input-placeholder { color: var(--placeholder-color); }
+            input::placeholder { color: #9A948D; opacity: 1; }
+            input::-webkit-input-placeholder { color: #9A948D; }
             body { background-color: var(--bg-body) !important; }
+
+            /* Light mode body background */
+            html body { --bg-body: #FDF8F3; }
+
+            /* Dark mode - warm dark brown background that transitions from cream */
+            html.q-dark body,
+            html.body--dark body { --bg-body: #2A2723; background-color: #2A2723 !important; }
         </style>
-        <script>
-            // Set theme-aware CSS variables for body background
-            document.addEventListener('DOMContentLoaded', function() {{
-                const isDark = document.body.classList.contains('dark');
-                document.documentElement.style.setProperty('--bg-body', isDark ? '#1A1816' : '#FDF8F3');
-                document.documentElement.style.setProperty('--placeholder-color', '#9A948D');
-            }});
-        </script>
     ''')
 
     user_email = auth.get_session("user_email", "")
