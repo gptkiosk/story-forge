@@ -275,9 +275,18 @@ def render_header():
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
             .q-field__native, .q-field__input { color: inherit !important; }
-            input::placeholder { color: #9A948D; opacity: 1; }
-            input::-webkit-input-placeholder { color: #9A948D; }
+            input::placeholder { color: var(--placeholder-color); opacity: 1; }
+            input::-webkit-input-placeholder { color: var(--placeholder-color); }
+            body { background-color: var(--bg-body) !important; }
         </style>
+        <script>
+            // Set theme-aware CSS variables for body background
+            document.addEventListener('DOMContentLoaded', function() {{
+                const isDark = document.body.classList.contains('dark');
+                document.documentElement.style.setProperty('--bg-body', isDark ? '#1A1816' : '#FDF8F3');
+                document.documentElement.style.setProperty('--placeholder-color', '#9A948D');
+            }});
+        </script>
     ''')
 
     user_email = auth.get_session("user_email", "")
@@ -1410,11 +1419,17 @@ def render_voice_studio_header():
     ui.add_head_html('''
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@20..48,100..700,0..1&display=swap" rel="stylesheet">
         <style>
-            html, body { overflow: hidden; height: 100vh; background-color: #FDF8F3; }
+            html, body { overflow: hidden; height: 100vh; background-color: var(--bg-body); }
             body { margin: 0; padding: 0; }
             .scrollable-pane { overflow-y: auto; height: 100%; }
             .q-page-container { overflow: hidden !important; }
         </style>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const isDark = document.body.classList.contains('dark');
+                document.documentElement.style.setProperty('--bg-body', isDark ? '#1A1816' : '#FDF8F3');
+            });
+        </script>
     ''')
     user_email = auth.get_session("user_email", "")
     user_avatar = auth.get_session("user_avatar", "")
