@@ -3,7 +3,7 @@ Books routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
 from schemas import (
-    BookCreate, BookUpdate, BookResponse, BooksListResponse, ChapterCreate,
+    BookCreate, BookUpdate, BookResponse, BookListResponse, ChapterCreate,
     to_book_response, to_book_list_response, to_chapter_response
 )
 from db_helpers import (
@@ -17,7 +17,7 @@ ITEMS_PER_PAGE = 12
 router = APIRouter()
 
 
-@router.get("", response_model=BooksListResponse)
+@router.get("", response_model=BookListResponse)
 def list_books(request: Request, page: int = 1, search: str = "", status: str = ""):
     """Get all books."""
     require_auth(request)
@@ -28,7 +28,7 @@ def list_books(request: Request, page: int = 1, search: str = "", status: str = 
         page=page
     )
 
-    return BooksListResponse(
+    return BookListResponse(
         books=[to_book_list_response(b) for b in books],
         total=total,
         page=page,
