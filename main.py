@@ -366,13 +366,6 @@ def render_header():
                 else:
                     ui.avatar(user_email[0].upper() if user_email else "?").props("size=sm").style("margin-left: 0.5rem;")
 
-    # Section header bar - sticky, shows current page title
-    section_header_style = f"background-color: {scheme['bg_secondary']}; border-bottom: 1px solid {scheme['border_light']}; padding: 0.75rem 2rem; position: sticky; top: 0; z-index: 99;"
-
-    with ui.element("div").style(section_header_style):
-        with ui.row().classes("w-full max-w-7xl mx-auto items-center"):
-            pass  # Section title rendered per-page via render_section_header()
-
 
 def render_section_header(current_theme, scheme, right_content=None):
     """Render a sticky section header bar - only renders if there's right content to show."""
