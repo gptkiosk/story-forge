@@ -185,33 +185,17 @@ class DashboardStats(BaseModel):
 # Helper Functions for Conversion
 # =============================================================================
 
-def to_book_response(book) -> BookResponse:
-    """Convert SQLAlchemy Book to BookResponse, breaking circular refs."""
-    chapters = [to_chapter_response(c) for c in book.chapters]
-    return BookResponse(
+def to_book_list_item(book) -> BookListResponse:
+    """Convert SQLAlchemy Book to BookListResponse for list display."""
+    return BookListResponse(
         id=book.id,
         title=book.title,
         description=book.description,
         author=book.author,
         status=book.status.value if hasattr(book.status, 'value') else str(book.status),
         word_count=book.word_count,
+        chapter_count=len(book.chapters) if book.chapters else 0,
         created_at=book.created_at,
-        updated_at=book.updated_at,
-        chapters=chapters,
-    )
-
-
-def to_book_response(book) -> BookResponse:
-    """Convert SQLAlchemy Book to BookResponse for list display."""
-    return BookResponse(
-        id=book.id,
-        title=book.title,
-        description=book.description,
-        author=book.author,
-        status=book.status.value if hasattr(book.status, 'value') else str(book.status),
-        word_count=book.word_count,
-        created_at=str(book.created_at),
-        updated_at=str(book.updated_at) if hasattr(book, 'updated_at') else None,
     )
 
 
