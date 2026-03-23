@@ -60,13 +60,13 @@ def get_current_user(request: Request):
             avatar=None
         )
     
-    user_id = auth.get_session("user_id", request)
+    user_id = auth.get_session("user_id", None)
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    user_email = auth.get_session("user_email", request) or ""
-    user_name = auth.get_session("user_name", request) or user_email.split("@")[0]
-    user_avatar = auth.get_session("user_avatar", request) or ""
+    user_email = auth.get_session("user_email", None) or ""
+    user_name = auth.get_session("user_name", None) or user_email.split("@")[0]
+    user_avatar = auth.get_session("user_avatar", None) or ""
 
     return UserResponse(
         id=str(user_id),
@@ -81,7 +81,7 @@ def auth_status(request: Request):
     """Check if user is authenticated."""
     if REVIEW_MODE:
         return AuthStatus(authenticated=True)
-    user_id = auth.get_session("user_id", request)
+    user_id = auth.get_session("user_id", None)
     return AuthStatus(authenticated=bool(user_id))
 
 
@@ -90,7 +90,7 @@ def get_theme(request: Request):
     """Get current theme preference."""
     if REVIEW_MODE:
         return ThemeResponse(theme="light")
-    theme = auth.get_session("theme", request) or "light"
+    theme = auth.get_session("theme", None) or "light"
     return ThemeResponse(theme=theme)
 
 
