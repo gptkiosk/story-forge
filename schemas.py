@@ -95,6 +95,14 @@ class BookListResponse(BaseModel):
     created_at: datetime
 
 
+class BooksPaginatedResponse(BaseModel):
+    """Paginated book list response."""
+    books: list[BookListResponse]
+    total: int
+    page: int
+    per_page: int
+
+
 class BookCreate(BookBase):
     pass
 
