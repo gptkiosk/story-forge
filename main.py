@@ -706,8 +706,8 @@ def create_app():
                             label="Status",
                             options=status_options,
                             value=status if status else None,
-                        ).classes("w-48").style(
-                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px; text-align: center;"
+                        ).classes("w-48").props('label-style="text-align: center; width: 100%;"').style(
+                            f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
                         )
 
                         def apply_filters():
@@ -935,7 +935,7 @@ def create_app():
                             label="Status",
                             options=status_options,
                             value="draft",
-                        ).classes("w-full").style(
+                        ).classes("w-full").props('label-style="text-align: center; width: 100%;"').style(
                             f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
                         )
 
@@ -1174,7 +1174,7 @@ def create_app():
                             label="Status",
                             options=status_options,
                             value=book.status.value,
-                        ).classes("w-full").style(
+                        ).classes("w-full").props('label-style="text-align: center; width: 100%;"').style(
                             f"background-color: {scheme['bg_input']}; color: {scheme['text_primary']}; border: 1px solid {scheme['border_light']}; border-radius: 10px;"
                         )
 
