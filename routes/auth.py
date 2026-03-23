@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 import auth
 
+from .auth_schemas import UserResponse, AuthStatus, ThemeResponse
+
 import os
 
 # Check if we're in review mode (no auth required)
@@ -46,17 +48,17 @@ def logout(request: Request):
     return {"status": "ok"}
 
 
-@router.get("/me")
+@router.get("/me", response_model=UserResponse)
 def get_current_user(request: Request):
     """Get current authenticated user."""
     # For review mode, return demo user
     if REVIEW_MODE:
-        return {
-            "id": "demo-user",
-            "email": "writer@storyforge.local",
-            "name": "Demo Writer",
-            "avatar": None
-        }
+        return UserResponse(
+            id="demo-user",
+            email="writer@storyforge.local",
+            name="Demo Writer",
+            avatar=None
+        )
     
     user_id = auth.get_session("user_id", request)
     if not user_id:
@@ -66,30 +68,30 @@ def get_current_user(request: Request):
     user_name = auth.get_session("user_name", request) or user_email.split("@")[0]
     user_avatar = auth.get_session("user_avatar", request) or ""
 
-    return {
-        "id": user_id,
-        "email": user_email,
-        "name": user_name,
-        "avatar": user_avatar if user_avatar else None
-    }
+    return UserResponse(
+        id=str(user_id),
+        email=user_email,
+        name=user_name,
+        avatar=user_avatar if user_avatar else None
+    )
 
 
-@router.get("/status")
+@router.get("/status", response_model=AuthStatus)
 def auth_status(request: Request):
     """Check if user is authenticated."""
     if REVIEW_MODE:
-        return {"authenticated": True}
+        return AuthStatus(authenticated=True)
     user_id = auth.get_session("user_id", request)
-    return {"authenticated": bool(user_id)}
+    return AuthStatus(authenticated=bool(user_id))
 
 
-@router.get("/theme")
+@router.get("/theme", response_model=ThemeResponse)
 def get_theme(request: Request):
     """Get current theme preference."""
     if REVIEW_MODE:
-        return {"theme": "light"}
+        return ThemeResponse(theme="light")
     theme = auth.get_session("theme", request) or "light"
-    return {"theme": theme}
+    return ThemeResponse(theme=theme)
 
 
 @router.post("/theme")
