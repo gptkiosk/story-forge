@@ -1,9 +1,10 @@
 """
 Voice Studio / TTS routes for Story Forge API
 """
-import base64
 from datetime import datetime
+from io import BytesIO
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from typing import Any, Optional
 from pydantic import BaseModel
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
@@ -139,9 +140,7 @@ def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoice
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.post("/preview")
-async def preview_voice(request: Request, body: PreviewRequest):
-    """Generate a short voice preview clip for mapping and mic checks."""
+async def _generate_preview_audio(request: Request, body: PreviewRequest):
     require_auth(request)
 
     preview_text = (body.text or "").strip()
@@ -179,14 +178,18 @@ async def preview_voice(request: Request, body: PreviewRequest):
     if not response.audio_data:
         raise HTTPException(status_code=502, detail="Provider returned no audio for mic check")
 
-    return {
-        "provider": body.provider,
-        "voice_id": body.voice_id,
-        "model": model,
-        "text": preview_text,
-        "audio_base64": base64.b64encode(response.audio_data).decode("ascii"),
-        "mime_type": "audio/mpeg",
-    }
+    return response.audio_data
+
+
+@router.post("/preview")
+async def preview_voice(request: Request, body: PreviewRequest):
+    """Generate a short voice preview clip for mapping and mic checks."""
+    audio_data = await _generate_preview_audio(request, body)
+    return StreamingResponse(
+        BytesIO(audio_data),
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": 'inline; filename="voice-preview.mp3"'},
+    )
 
 
 @router.post("/generate")

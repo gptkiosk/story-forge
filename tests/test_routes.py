@@ -573,7 +573,5 @@ class TestVoiceMappingRoutes:
         )
 
         assert response.status_code == 200
-        payload = response.json()
-        assert payload["voice_id"] == "voice_jamal"
-        assert payload["mime_type"] == "audio/mpeg"
-        assert payload["audio_base64"]
+        assert response.headers["content-type"].startswith("audio/mpeg")
+        assert response.content == b"fake-audio"
