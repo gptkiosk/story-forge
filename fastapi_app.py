@@ -12,6 +12,7 @@ from routes.books import router as books_router
 from routes.chapters import router as chapters_router
 from routes.voice_studio import router as voice_studio_router
 from routes.backups import router as backups_router
+from routes.context import router as context_router
 from routes.dashboard import router as dashboard_router
 from routes.manuscript import router as manuscript_router
 
@@ -66,6 +67,7 @@ app.include_router(books_router, prefix="/api/books", tags=["books"])
 app.include_router(chapters_router, prefix="/api/chapters", tags=["chapters"])
 app.include_router(voice_studio_router, prefix="/api/voice-studio", tags=["voice-studio"])
 app.include_router(backups_router, prefix="/api/backups", tags=["backups"])
+app.include_router(context_router, prefix="/api/context", tags=["context"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(manuscript_router, prefix="/api/manuscript", tags=["manuscript"])
 
@@ -73,10 +75,12 @@ app.include_router(manuscript_router, prefix="/api/manuscript", tags=["manuscrip
 @app.on_event("startup")
 def startup_event():
     """Initialize database tables on startup."""
+    from context_db import init_context_db
     from db import engine, Base
     # Import all models to register them
     import db as db_module
     Base.metadata.create_all(bind=engine)
+    init_context_db()
 
 
 @app.get("/api/health")
