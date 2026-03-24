@@ -74,6 +74,10 @@ story-forge/
 └── tests/               # Test suite
 ```
 
+## Contributor Notes
+
+- Follow [CODE_STANDARDS.md](/Users/masterblaster/.openclaw/agents/lance/workspace/story-forge/CODE_STANDARDS.md) for backend coding, testing, and architecture expectations.
+
 ## Near-Term Roadmap
 
 - Finalize frontend support for selectable manuscript export formats
