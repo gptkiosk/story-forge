@@ -12,6 +12,7 @@ import context_engine
 import db
 import db_helpers
 import libby
+import tts as tts_module
 from db import Base
 from fastapi_app import app
 
@@ -544,3 +545,35 @@ class TestVoiceMappingRoutes:
         )
         assert save_response.status_code == 400
         assert "does not fully cover" in save_response.json()["detail"]
+
+    def test_voice_preview_route_returns_audio_payload(self, monkeypatch):
+        async def fake_generate_speech(request):
+            assert request.voice_id == "voice_jamal"
+            assert request.provider == tts_module.TTSProvider.ELEVENLABS
+            assert request.text == "Mic check line"
+            return tts_module.TTSResponse(
+                audio_data=b"fake-audio",
+                provider=request.provider,
+                voice_id=request.voice_id,
+                model=request.model,
+            )
+
+        monkeypatch.setattr(tts_module.tts_manager, "generate_speech", fake_generate_speech)
+        monkeypatch.setattr(tts_module.tts_manager, "is_provider_configured", lambda provider: True)
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/voice-studio/preview",
+            json={
+                "provider": "elevenlabs",
+                "voice_id": "voice_jamal",
+                "text": "Mic check line",
+                "speed": 0.98,
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["voice_id"] == "voice_jamal"
+        assert payload["mime_type"] == "audio/mpeg"
+        assert payload["audio_base64"]

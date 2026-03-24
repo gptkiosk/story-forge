@@ -1,6 +1,7 @@
 """
 Voice Studio / TTS routes for Story Forge API
 """
+import base64
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 from typing import Any, Optional
@@ -36,6 +37,14 @@ class BookVoiceMapUpdateRequest(BaseModel):
 class ChapterVoiceMapUpdateRequest(BaseModel):
     segments: list[dict[str, Any]]
     characters: Optional[list[dict[str, Any]]] = None
+
+
+class PreviewRequest(BaseModel):
+    provider: str = "elevenlabs"
+    voice_id: str
+    text: str
+    model: Optional[str] = None
+    speed: float = 1.0
 
 
 @router.get("/providers")
@@ -128,6 +137,56 @@ def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoice
         )
     except VoiceMapValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/preview")
+async def preview_voice(request: Request, body: PreviewRequest):
+    """Generate a short voice preview clip for mapping and mic checks."""
+    require_auth(request)
+
+    preview_text = (body.text or "").strip()
+    if not preview_text:
+        raise HTTPException(status_code=400, detail="Preview text is required")
+    if len(preview_text) > 900:
+        raise HTTPException(status_code=400, detail="Preview text is too long for mic check")
+    if not body.voice_id:
+        raise HTTPException(status_code=400, detail="voice_id is required for mic check")
+
+    try:
+        tts_provider = tts_module.TTSProvider(body.provider)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {body.provider}")
+
+    manager = tts_module.tts_manager
+    if not manager.is_provider_configured(tts_provider):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{body.provider} API key not configured for mic check."
+        )
+
+    model = body.model or manager.get_provider(tts_provider).get_available_models()[0]
+    response = await manager.generate_speech(
+        tts_module.TTSRequest(
+            text=preview_text,
+            provider=tts_provider,
+            voice_id=body.voice_id,
+            model=model,
+            speed=body.speed or 1.0,
+        )
+    )
+    if response.error:
+        raise HTTPException(status_code=502, detail=response.error)
+    if not response.audio_data:
+        raise HTTPException(status_code=502, detail="Provider returned no audio for mic check")
+
+    return {
+        "provider": body.provider,
+        "voice_id": body.voice_id,
+        "model": model,
+        "text": preview_text,
+        "audio_base64": base64.b64encode(response.audio_data).decode("ascii"),
+        "mime_type": "audio/mpeg",
+    }
 
 
 @router.post("/generate")
