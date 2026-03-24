@@ -34,7 +34,11 @@ logger = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-BACKUP_DIR = Path("./data/backups")
+import os
+
+# Use absolute path - project root (parent of this file is the project root)
+PROJECT_ROOT = Path(__file__).parent.parent
+BACKUP_DIR = PROJECT_ROOT / "data" / "backups"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 DATA_DIR = Path("./data")
