@@ -359,13 +359,12 @@ class LibbyClient:
         data = json_loads(stdout)
         for key in ("reply", "message"):
             value = data.get(key)
-            if isinstance(value, str) and value.strip():
-                parsed = try_parse_json_block(value)
-                if parsed is not None:
-                    return parsed
-                return {"output": value.strip()}
-            if isinstance(value, dict):
-                return value
+            parsed = extract_jsonish_payload(value)
+            if parsed is not None:
+                return parsed
+        parsed = extract_jsonish_payload(data)
+        if parsed is not None:
+            return parsed
         return data
 
 
@@ -382,6 +381,40 @@ def try_parse_json_block(value: str) -> dict | None:
             return None
         if isinstance(parsed, dict):
             return parsed
+    return None
+
+
+def extract_jsonish_payload(value):
+    if isinstance(value, str) and value.strip():
+        parsed = try_parse_json_block(value)
+        if parsed is not None:
+            return parsed
+        return {"output": value.strip()}
+
+    if isinstance(value, dict):
+        content = value.get("content")
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parsed = try_parse_json_block(text)
+                        if parsed is not None:
+                            return parsed
+                        return {"output": text.strip()}
+        for key in ("text", "reply", "message", "output", "result"):
+            inner = value.get(key)
+            if inner is not None:
+                parsed = extract_jsonish_payload(inner)
+                if parsed is not None:
+                    return parsed
+        return value
+
+    if isinstance(value, list):
+        for item in value:
+            parsed = extract_jsonish_payload(item)
+            if parsed is not None:
+                return parsed
     return None
 
 

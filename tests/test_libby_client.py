@@ -1,7 +1,7 @@
 import subprocess
 
 import libby
-from libby import LibbyClient, SubmissionType, try_parse_json_block
+from libby import LibbyClient, SubmissionType, extract_jsonish_payload, try_parse_json_block
 
 
 def test_try_parse_json_block_handles_fenced_json():
@@ -40,6 +40,21 @@ def test_send_via_openclaw_parses_reply_json(monkeypatch):
     response = client._send_via_openclaw({"type": SubmissionType.NEXT_CHAPTER_IDEAS})
     assert response["success"] is True
     assert response["ideas"][0]["title"] == "Option A"
+
+
+def test_extract_jsonish_payload_reads_openclaw_message_content_blocks():
+    payload = extract_jsonish_payload(
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": '{"ideas":[{"title":"The First Volunteer","direction":"Go next","rationale":"Fits continuity"}]}',
+                }
+            ],
+        }
+    )
+    assert payload["ideas"][0]["title"] == "The First Volunteer"
 
 
 def test_openclaw_available_uses_sessions_command(monkeypatch):
