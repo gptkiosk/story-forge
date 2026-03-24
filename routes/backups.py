@@ -16,8 +16,8 @@ def list_backups(request: Request):
     require_auth(request)
     backups = backup_module.list_backups()
     return [{
-        "id": b["id"],
-        "filename": b["filename"],
+        "id": Path(b["path"]).name,
+        "filename": Path(b["path"]).name,
         "size": b["size"],
         "created_at": b["created_at"]
     } for b in backups]
