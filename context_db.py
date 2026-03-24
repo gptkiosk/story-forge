@@ -63,10 +63,16 @@ class ContextSummary(ContextBase):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
 
+def normalize_context_database_url(db_url: str) -> str:
+    if db_url.startswith("postgresql://"):
+        return db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return db_url
+
+
 def get_context_database_url() -> str | None:
     explicit_url = os.environ.get("STORY_FORGE_CONTEXT_POSTGRES_URL")
     if explicit_url:
-        return explicit_url
+        return normalize_context_database_url(explicit_url)
 
     host = os.environ.get("POSTGRES_HOST")
     port = os.environ.get("POSTGRES_PORT", "5432")
@@ -74,7 +80,9 @@ def get_context_database_url() -> str | None:
     user = os.environ.get("POSTGRES_USER")
     password = os.environ.get("POSTGRES_PASSWORD")
     if host and db_name and user and password:
-        return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"
+        return normalize_context_database_url(
+            f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"
+        )
 
     return None
 
