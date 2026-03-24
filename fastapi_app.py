@@ -13,6 +13,7 @@ from routes.chapters import router as chapters_router
 from routes.voice_studio import router as voice_studio_router
 from routes.backups import router as backups_router
 from routes.dashboard import router as dashboard_router
+from routes.manuscript import router as manuscript_router
 
 app = FastAPI(
     title="Story Forge API",
@@ -41,6 +42,7 @@ app.include_router(chapters_router, prefix="/api/chapters", tags=["chapters"])
 app.include_router(voice_studio_router, prefix="/api/voice-studio", tags=["voice-studio"])
 app.include_router(backups_router, prefix="/api/backups", tags=["backups"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
+app.include_router(manuscript_router, prefix="/api/manuscript", tags=["manuscript"])
 
 
 @app.on_event("startup")

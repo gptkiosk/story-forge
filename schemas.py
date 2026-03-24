@@ -132,8 +132,11 @@ class ChapterResponseWithTTS(ChapterResponse):
     tts_jobs: list[TTSJobResponse] = []
 
 
-class ChapterCreate(ChapterBase):
-    book_id: int
+class ChapterCreate(BaseModel):
+    title: str
+    content: Optional[str] = None
+    order: int = 0
+    word_count: int = 0
 
 
 class ChapterUpdate(BaseModel):

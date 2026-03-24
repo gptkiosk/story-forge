@@ -76,10 +76,12 @@ def get_all_books(search: str = "", status_filter: str = "", page: int = 1) -> t
 
 
 def get_book_by_id(book_id: int) -> Book | None:
-    """Get a book by ID."""
+    """Get a book by ID with chapters eagerly loaded."""
     db = get_session()
     try:
-        return db.query(Book).filter(Book.id == book_id).first()
+        return db.query(Book).options(
+            joinedload(Book.chapters)
+        ).filter(Book.id == book_id).first()
     finally:
         db.close()
 
@@ -96,7 +98,8 @@ def create_book(title: str, description: str = "", author: str = "", status: str
         )
         db.add(book)
         db.commit()
-        db.refresh(book)
+        # Re-query with eager load so chapters is accessible after session close
+        book = db.query(Book).options(joinedload(Book.chapters)).filter(Book.id == book.id).first()
         return book
     finally:
         db.close()
@@ -117,7 +120,7 @@ def update_book(book_id: int, **kwargs) -> Book | None:
                 setattr(book, key, value)
 
         db.commit()
-        db.refresh(book)
+        book = db.query(Book).options(joinedload(Book.chapters)).filter(Book.id == book_id).first()
         return book
     finally:
         db.close()

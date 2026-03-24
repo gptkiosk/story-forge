@@ -4,7 +4,7 @@ Books routes for Story Forge API
 from fastapi import APIRouter, HTTPException, Request
 from schemas import (
     BookCreate, BookUpdate, BookResponse, BookListResponse, BooksPaginatedResponse, ChapterCreate,
-    to_book_list_item, to_chapter_response
+    to_book_list_item, to_book_response, to_chapter_response
 )
 from db_helpers import (
     get_all_books, get_book_by_id, create_book, update_book, delete_book,
@@ -55,9 +55,9 @@ def create_book_route(request: Request, book: BookCreate):
 
     new_book = create_book(
         title=book.title,
-        description=book.description or book.synopsis or "",
+        description=book.description or "",
         author=book.author or "",
-        status=book.status.value if book.status else "draft"
+        status=book.status or "draft"
     )
 
     return to_book_response(new_book)

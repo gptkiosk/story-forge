@@ -16,6 +16,20 @@ import httpx
 # Configuration
 # =============================================================================
 
+# Keychain for storing API keys
+KEYCHAIN_SERVICE = "story-forge"
+
+def _get_api_key(env_var: str, keychain_key: str) -> str:
+    """Get API key from env var or keychain."""
+    key = os.environ.get(env_var, "")
+    if not key:
+        try:
+            import keyring
+            key = keyring.get_password(KEYCHAIN_SERVICE, keychain_key) or ""
+        except Exception:
+            pass
+    return key
+
 # MiniMax API
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
 MINIMAX_API_URL = "https://api.minimax.io/v1"
@@ -23,9 +37,6 @@ MINIMAX_API_URL = "https://api.minimax.io/v1"
 # ElevenLabs API
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
-
-# Keychain for storing API keys
-KEYCHAIN_SERVICE = "story-forge"
 
 
 class TTSProvider(Enum):
@@ -126,8 +137,7 @@ class MiniMaxProvider(TTSProviderBase):
     """MiniMax TTS provider implementation."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self._api_key = api_key or MINIMAX_API_KEY
-        self._keychain_key = f"{KEYCHAIN_SERVICE}-minimax-api-key"
+        self._api_key = api_key or _get_api_key("MINIMAX_API_KEY", f"{KEYCHAIN_SERVICE}-minimax-api-key")
 
     @property
     def provider(self) -> TTSProvider:
@@ -277,7 +287,7 @@ class ElevenLabsProvider(TTSProviderBase):
     """ElevenLabs TTS provider implementation."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self._api_key = api_key or ELEVENLABS_API_KEY
+        self._api_key = api_key or _get_api_key("ELEVENLABS_API_KEY", f"{KEYCHAIN_SERVICE}-elevenlabs-api-key")
 
     @property
     def provider(self) -> TTSProvider:
@@ -513,9 +523,9 @@ class TTSManager:
     def is_provider_configured(self, provider: TTSProvider) -> bool:
         """Check if a provider is configured with API keys."""
         if provider == TTSProvider.MINIMAX:
-            return bool(MINIMAX_API_KEY)
+            return bool(self.minimax._api_key)
         elif provider == TTSProvider.ELEVENLABS:
-            return bool(ELEVENLABS_API_KEY)
+            return bool(self.elevenlabs._api_key)
         return False
 
     def get_available_providers(self) -> list[TTSProvider]:

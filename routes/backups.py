@@ -1,7 +1,6 @@
 """
 Backups routes for Story Forge API
 """
-from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from .auth_utils import require_auth
 from db import DATABASE_PATH
@@ -12,29 +11,32 @@ router = APIRouter()
 
 @router.get("")
 def list_backups(request: Request):
-    """List all backups."""
+    """List all backups (local + USB SSD)."""
     require_auth(request)
     backups = backup_module.list_backups()
     return [{
-        "id": Path(b["path"]).name,
-        "filename": Path(b["path"]).name,
+        "id": b["filename"],
+        "filename": b["filename"],
         "size": b["size"],
-        "created_at": b["created_at"]
+        "created_at": b.get("created_at"),
+        "book_title": b.get("book_title", "unknown"),
+        "source": b.get("source", "local"),
+        "backup_type": b.get("backup_type", "local"),
     } for b in backups]
 
 
 @router.post("")
 def create_backup(request: Request):
-    """Create a new backup."""
+    """Create a new backup (auto-syncs to USB SSD if available)."""
     require_auth(request)
     try:
         backup = backup_module.create_backup(str(DATABASE_PATH))
-        # Map backup fields to API response
         return {
-            "id": Path(backup["path"]).name,
-            "filename": Path(backup["path"]).name,
+            "id": backup["filename"],
+            "filename": backup["filename"],
             "size": backup["size"],
-            "created_at": backup["created_at"]
+            "created_at": backup["created_at"],
+            "usb_synced": backup.get("usb_synced", False),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -45,15 +47,17 @@ def restore_backup(request: Request, backup_id: str):
     """Restore from a backup."""
     require_auth(request)
     try:
-        backup_module.restore_backup(backup_id)
-        return {"status": "restored"}
+        result = backup_module.restore_backup(backup_id)
+        return {"status": "restored", **result}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Backup not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{backup_id}")
 def delete_backup(request: Request, backup_id: str):
-    """Delete a backup."""
+    """Delete a backup from local and USB SSD."""
     require_auth(request)
     success = backup_module.delete_backup(backup_id)
     if not success:
@@ -69,3 +73,10 @@ def get_last_backup(request: Request):
     if not last_backup:
         return {"last_backup": None}
     return {"last_backup": last_backup}
+
+
+@router.get("/status")
+def get_backup_status(request: Request):
+    """Get backup system status (USB SSD availability, counts, etc.)."""
+    require_auth(request)
+    return backup_module.get_backup_status()
