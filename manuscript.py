@@ -747,8 +747,18 @@ def list_manuscripts(book_id: Optional[int] = None) -> list[dict]:
 
     for item in MANUSCRIPT_DIR.iterdir():
         if item.is_dir():
-            # Package directory — list files inside
-            files = [f.name for f in item.iterdir() if f.is_file()]
+            # Package directory — list files inside with metadata
+            files = []
+            for file_item in sorted(
+                [f for f in item.iterdir() if f.is_file()],
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            ):
+                files.append({
+                    "filename": file_item.name,
+                    "size": file_item.stat().st_size,
+                    "modified_at": datetime.fromtimestamp(file_item.stat().st_mtime).isoformat(),
+                })
             manuscripts.append({
                 "filename": item.name,
                 "path": str(item),
