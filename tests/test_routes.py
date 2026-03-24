@@ -291,7 +291,7 @@ class TestLibbyWorkflowRoutes:
             return {
                 "success": True,
                 "chapter_title": "Chapter 2 - Reactor Fracture",
-                "chapter_content": "Jamal followed the humming conduit into the dark...",
+                "chapter_content": "Jamal followed the humming conduit into the dark --- and when the alarms hit, he froze — just long enough to hear the whisper behind him.",
             }
 
         monkeypatch.setattr(libby.libby_client, "suggest_next_chapter_ideas", fake_suggest_next_chapter_ideas)
@@ -333,4 +333,6 @@ class TestLibbyWorkflowRoutes:
         generated = generate_response.json()
         assert generated["title"] == "Chapter 2 - Reactor Fracture"
         assert generated["content"].startswith("Jamal followed")
+        assert "---" not in generated["content"]
+        assert "—" not in generated["content"]
         assert generated["order"] == 2

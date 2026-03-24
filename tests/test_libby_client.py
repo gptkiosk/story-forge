@@ -82,3 +82,15 @@ def test_openclaw_available_uses_sessions_command(monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: Result())
     assert client._openclaw_available() is True
+
+
+def test_openclaw_prompt_for_story_direction_forbids_em_dashes_and_scene_breaks():
+    client = LibbyClient()
+    prompt = client._build_openclaw_prompt(
+        {
+            "type": SubmissionType.STORY_DIRECTION,
+            "story_context": {"summary_text": "Context"},
+        }
+    )
+    assert "do not use em dashes" in prompt
+    assert "do not use triple hyphen scene breaks" in prompt

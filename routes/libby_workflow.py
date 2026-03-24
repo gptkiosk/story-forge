@@ -152,6 +152,15 @@ def _parse_ideas_response(response: dict) -> list[dict]:
     return ideas[:3]
 
 
+def _sanitize_generated_text(value: str) -> str:
+    sanitized = value.replace("---", "\n\n").replace("—", ", ")
+    while "\n\n\n" in sanitized:
+        sanitized = sanitized.replace("\n\n\n", "\n\n")
+    while "  " in sanitized:
+        sanitized = sanitized.replace("  ", " ")
+    return sanitized.strip()
+
+
 def _parse_generated_chapter(response: dict) -> dict:
     for key in ("chapter", "result", "output", "data"):
         payload = response.get(key)
@@ -159,7 +168,7 @@ def _parse_generated_chapter(response: dict) -> dict:
             title = str(payload.get("chapter_title") or payload.get("title") or "").strip()
             content = str(payload.get("chapter_content") or payload.get("content") or "").strip()
             if content:
-                return {"title": title, "content": content}
+                return {"title": title, "content": _sanitize_generated_text(content)}
         if isinstance(payload, str):
             stripped = payload.strip()
             if stripped.startswith("{") and stripped.endswith("}"):
@@ -171,12 +180,12 @@ def _parse_generated_chapter(response: dict) -> dict:
                     title = str(parsed.get("chapter_title") or parsed.get("title") or "").strip()
                     content = str(parsed.get("chapter_content") or parsed.get("content") or "").strip()
                     if content:
-                        return {"title": title, "content": content}
+                        return {"title": title, "content": _sanitize_generated_text(content)}
 
     content = str(response.get("chapter_content") or response.get("content") or "").strip()
     title = str(response.get("chapter_title") or response.get("title") or "").strip()
     if content:
-        return {"title": title, "content": content}
+        return {"title": title, "content": _sanitize_generated_text(content)}
 
     raise HTTPException(status_code=502, detail="Libby did not return usable chapter content.")
 

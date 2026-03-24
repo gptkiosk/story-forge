@@ -331,6 +331,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: draft one chapter from the supplied story direction.\n"
+                "Style constraints: do not use em dashes, and do not use triple hyphen scene breaks. Replace them with commas, periods, or plain sentence transitions.\n"
                 "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
@@ -344,6 +345,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: rewrite the chapter based on the feedback.\n"
+                "Style constraints: do not use em dashes, and do not use triple hyphen scene breaks. Replace them with commas, periods, or plain sentence transitions.\n"
                 "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
