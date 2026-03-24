@@ -28,9 +28,10 @@ def create_backup(request: Request):
     require_auth(request)
     try:
         backup = backup_module.create_backup(str(DATABASE_PATH))
+        # Map backup fields to API response
         return {
-            "id": backup["id"],
-            "filename": backup["filename"],
+            "id": Path(backup["path"]).name,
+            "filename": Path(backup["path"]).name,
             "size": backup["size"],
             "created_at": backup["created_at"]
         }
