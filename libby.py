@@ -362,6 +362,10 @@ class LibbyClient:
             parsed = extract_jsonish_payload(value)
             if parsed is not None:
                 return parsed
+        result = data.get("result")
+        parsed = extract_jsonish_payload(result)
+        if parsed is not None:
+            return parsed
         parsed = extract_jsonish_payload(data)
         if parsed is not None:
             return parsed
@@ -392,6 +396,12 @@ def extract_jsonish_payload(value):
         return {"output": value.strip()}
 
     if isinstance(value, dict):
+        payloads = value.get("payloads")
+        if isinstance(payloads, list):
+            for item in payloads:
+                parsed = extract_jsonish_payload(item)
+                if parsed is not None:
+                    return parsed
         content = value.get("content")
         if isinstance(content, list):
             for item in content:

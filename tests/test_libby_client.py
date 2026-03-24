@@ -57,6 +57,20 @@ def test_extract_jsonish_payload_reads_openclaw_message_content_blocks():
     assert payload["ideas"][0]["title"] == "The First Volunteer"
 
 
+def test_extract_jsonish_payload_reads_openclaw_result_payloads():
+    payload = extract_jsonish_payload(
+        {
+            "payloads": [
+                {
+                    "text": '{"ideas":[{"title":"Payload Idea","direction":"Next move","rationale":"Works now"}]}',
+                    "mediaUrl": None,
+                }
+            ]
+        }
+    )
+    assert payload["ideas"][0]["title"] == "Payload Idea"
+
+
 def test_openclaw_available_uses_sessions_command(monkeypatch):
     client = LibbyClient()
     monkeypatch.setattr(libby.shutil, "which", lambda name: "/opt/homebrew/bin/openclaw")
