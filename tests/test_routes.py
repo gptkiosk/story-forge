@@ -149,6 +149,22 @@ class TestContextRoutes:
             }
             return context_state["latest_job"]
 
+        def fake_queue_context_ingestion_with_refine(
+            book_id, title, content_text, source_filename=None, refine_with_libby=False
+        ):
+            assert refine_with_libby is True
+            return fake_queue_context_ingestion(book_id, title, content_text, source_filename)
+
+        def fake_queue_context_refinement(book_id):
+            assert book_id == 42
+            return {
+                "id": 10,
+                "source_type": "context_refinement",
+                "status": "queued",
+                "progress_message": "Queued for Libby context refinement...",
+                "progress_percent": 0,
+            }
+
         def fake_update_context_summary(book_id, payload):
             assert book_id == 42
             context_state["summary"] = {
@@ -173,7 +189,8 @@ class TestContextRoutes:
             }
 
         monkeypatch.setattr(context_engine, "get_context_state", fake_get_context_state)
-        monkeypatch.setattr(context_engine, "queue_context_ingestion", fake_queue_context_ingestion)
+        monkeypatch.setattr(context_engine, "queue_context_ingestion", fake_queue_context_ingestion_with_refine)
+        monkeypatch.setattr(context_engine, "queue_context_refinement", fake_queue_context_refinement)
         monkeypatch.setattr(context_engine, "update_context_summary", fake_update_context_summary)
         monkeypatch.setattr(context_engine, "export_context_summary", fake_export_context_summary)
 
@@ -187,10 +204,15 @@ class TestContextRoutes:
                 "title": "Book One",
                 "content_text": "Full manuscript text",
                 "source_filename": "book-one.txt",
+                "refine_with_libby": True,
             },
         )
         assert ingest_response.status_code == 200
         assert ingest_response.json()["status"] == "queued"
+
+        refine_response = client.post("/api/context/42/refine")
+        assert refine_response.status_code == 200
+        assert refine_response.json()["source_type"] == "context_refinement"
 
         update_response = client.put(
             "/api/context/42/summary",

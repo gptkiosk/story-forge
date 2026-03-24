@@ -36,6 +36,7 @@ class SubmissionType:
     CHAPTER_REWRITE = "chapter_rewrite"        # Request chapter rewrite based on feedback
     STORY_DIRECTION = "story_direction"        # Submit story direction for chapter creation
     CONTEXT_UPDATE = "context_update"          # Update Libby's story context
+    CONTEXT_REFINEMENT = "context_refinement"  # Refine extracted story context
 
 
 class SubmissionStatus:
@@ -168,6 +169,41 @@ class LibbyClient:
         }
 
         return await self._send_request("/context", payload)
+
+    async def refine_context_summary(
+        self,
+        *,
+        book_id: int,
+        source_title: str,
+        heuristic_summary: dict,
+        source_excerpt: str,
+        source_word_count: int,
+    ) -> dict:
+        """
+        Ask Libby to normalize and refine a heuristic context summary.
+
+        This keeps token usage lower than sending an entire manuscript while still
+        giving Libby enough evidence to remove false positives and compress the
+        result into a more useful continuity format.
+        """
+        payload = {
+            "type": SubmissionType.CONTEXT_REFINEMENT,
+            "book_id": book_id,
+            "source_title": source_title,
+            "source_word_count": source_word_count,
+            "heuristic_summary": heuristic_summary,
+            "source_excerpt": source_excerpt,
+            "instructions": (
+                "Refine this context summary for a fiction book. Remove false character "
+                "names such as common capitalized words, merge duplicate or alias names, "
+                "keep only evidence-backed facts, and return concise continuity memory. "
+                "Do not invent details. Respond as JSON with keys: summary_text, "
+                "characters, plot_threads, world_details, style_notes."
+            ),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        return await self._send_request("/process", payload)
 
     async def _send_request(self, endpoint: str, payload: dict) -> dict:
         """Send a request to Libby's API."""

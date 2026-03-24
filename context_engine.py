@@ -4,6 +4,8 @@ Context engine service layer for Story Forge.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import re
 import threading
 from collections import Counter
@@ -16,12 +18,25 @@ from context_db import (
     context_db_enabled,
     get_context_session,
 )
+from libby import libby_client
 
 STOPWORDS = {
     "The", "A", "An", "And", "But", "Or", "If", "In", "On", "At", "By",
     "For", "Of", "To", "From", "With", "Without", "As", "Into", "Chapter",
     "He", "She", "They", "We", "I", "It", "His", "Her", "Their", "Our",
 }
+
+COMMON_FALSE_NAMES = {
+    "This", "That", "These", "Those", "What", "When", "Where", "Why", "How",
+    "Who", "Whom", "Which", "There", "Then", "Here", "After", "Before",
+    "Because", "While", "Though", "Through", "Across", "Inside", "Outside",
+    "Today", "Tomorrow", "Yesterday", "Morning", "Evening", "Night", "Day",
+    "Year", "Years", "Month", "Months", "Week", "Weeks", "Book", "Part",
+    "Scene", "Origin", "Origins", "Era", "Implant", "Yes", "No", "Okay",
+}
+
+LOW_SIGNAL_CHARACTER_TERMS = {term.lower() for term in STOPWORDS | COMMON_FALSE_NAMES}
+MAX_LIBBY_EXCERPT_CHARS = 12000
 
 WORLD_KEYWORDS = (
     "city", "kingdom", "planet", "ship", "station", "school", "village",
@@ -39,8 +54,33 @@ def _split_sentences(text: str) -> list[str]:
 
 def _extract_characters(text: str) -> list[str]:
     matches = re.findall(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", text)
-    counts = Counter(m for m in matches if m not in STOPWORDS and len(m) > 2)
-    return [name for name, _ in counts.most_common(12)]
+    counts: Counter[str] = Counter()
+    display_names: dict[str, str] = {}
+
+    for match in matches:
+        normalized = match.strip(".,!?;:\"'()[]{}")
+        lowered = normalized.lower()
+        if len(normalized) <= 2:
+            continue
+        if lowered in LOW_SIGNAL_CHARACTER_TERMS:
+            continue
+        if lowered in WORLD_KEYWORDS:
+            continue
+        if normalized.endswith(("Chapter", "Book", "Part", "Scene")):
+            continue
+
+        token_count = len(normalized.split())
+        counts[lowered] += 1
+        display_names.setdefault(lowered, normalized)
+
+        if token_count == 1 and counts[lowered] == 1 and lowered.endswith(("ing", "ed")):
+            counts[lowered] -= 1
+
+    sorted_candidates = sorted(
+        counts.items(),
+        key=lambda item: (-item[1], display_names[item[0]]),
+    )
+    return [display_names[name] for name, count in sorted_candidates if count > 0][:12]
 
 
 def _extract_plot_threads(paragraphs: list[str]) -> list[str]:
@@ -109,6 +149,105 @@ def _build_summary(content_text: str) -> dict:
     }
 
 
+def _sanitize_refined_list(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        item = value.strip()
+        if not item:
+            continue
+        lowered = item.lower()
+        if lowered in LOW_SIGNAL_CHARACTER_TERMS:
+            continue
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        cleaned.append(item)
+    return cleaned
+
+
+def _normalize_refined_payload(payload: dict, fallback: dict) -> dict:
+    return {
+        "summary_text": str(payload.get("summary_text") or fallback["summary_text"]).strip(),
+        "characters": _sanitize_refined_list(payload.get("characters")) or fallback["characters"],
+        "plot_threads": _sanitize_refined_list(payload.get("plot_threads")) or fallback["plot_threads"],
+        "world_details": _sanitize_refined_list(payload.get("world_details")) or fallback["world_details"],
+        "style_notes": _sanitize_refined_list(payload.get("style_notes")) or fallback["style_notes"],
+        "source_word_count": fallback["source_word_count"],
+    }
+
+
+def _extract_libby_payload(response: dict) -> dict | None:
+    candidate_keys = ("context_summary", "refined_context", "summary", "result", "output", "data")
+    for key in candidate_keys:
+        value = response.get(key)
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("{") and stripped.endswith("}"):
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, dict):
+                    return parsed
+    return None
+
+
+def _libby_excerpt(content_text: str) -> str:
+    excerpt = content_text.strip()
+    if len(excerpt) <= MAX_LIBBY_EXCERPT_CHARS:
+        return excerpt
+    return f"{excerpt[:MAX_LIBBY_EXCERPT_CHARS].rstrip()}\n\n[excerpt truncated for speed]"
+
+
+def _refine_summary_with_libby(book_id: int, title: str, content_text: str, base_summary: dict) -> tuple[dict, str | None]:
+    response = asyncio.run(
+        libby_client.refine_context_summary(
+            book_id=book_id,
+            source_title=title,
+            heuristic_summary=base_summary,
+            source_excerpt=_libby_excerpt(content_text),
+            source_word_count=base_summary["source_word_count"],
+        )
+    )
+    if not response.get("success"):
+        return base_summary, response.get("error") or "Libby refinement unavailable."
+
+    payload = _extract_libby_payload(response)
+    if payload is None:
+        return base_summary, "Libby responded without a usable JSON context summary."
+
+    return _normalize_refined_payload(payload, base_summary), None
+
+
+def _save_context_result(book_id: int, summary: dict):
+    session = get_context_session()
+    try:
+        existing_summary = session.query(ContextSummary).filter(ContextSummary.book_id == book_id).first()
+        if existing_summary is None:
+            existing_summary = ContextSummary(book_id=book_id)
+            session.add(existing_summary)
+
+        existing_summary.summary_text = summary["summary_text"]
+        existing_summary.characters = summary["characters"]
+        existing_summary.plot_threads = summary["plot_threads"]
+        existing_summary.world_details = summary["world_details"]
+        existing_summary.style_notes = summary["style_notes"]
+        existing_summary.source_document_count = session.query(ContextDocument).filter(
+            ContextDocument.book_id == book_id
+        ).count()
+        existing_summary.source_word_count = summary["source_word_count"]
+        session.commit()
+    finally:
+        session.close()
+
+
 def get_context_state(book_id: int) -> dict:
     if not context_db_enabled():
         return {
@@ -144,6 +283,7 @@ def get_context_state(book_id: int) -> dict:
             },
             "latest_job": None if latest_job is None else {
                 "id": latest_job.id,
+                "source_type": latest_job.source_type,
                 "status": latest_job.status,
                 "progress_message": latest_job.progress_message,
                 "progress_percent": latest_job.progress_percent,
@@ -182,48 +322,13 @@ def _set_job_progress(job_id: int, status: str, message: str, percent: int, erro
         session.close()
 
 
-def _run_ingestion(job_id: int, book_id: int, title: str, source_filename: str | None, content_text: str):
-    try:
-        _set_job_progress(job_id, "processing", "Gaining context from manuscript...", 15)
-        summary = _build_summary(content_text)
-
-        _set_job_progress(job_id, "processing", "Keeping up with characters and plot threads...", 55)
-        session = get_context_session()
-        try:
-            document = ContextDocument(
-                book_id=book_id,
-                title=title,
-                source_type="manuscript_text",
-                source_filename=source_filename,
-                content_text=content_text,
-                word_count=len(content_text.split()),
-            )
-            session.add(document)
-
-            existing_summary = session.query(ContextSummary).filter(ContextSummary.book_id == book_id).first()
-            if existing_summary is None:
-                existing_summary = ContextSummary(book_id=book_id)
-                session.add(existing_summary)
-
-            existing_summary.summary_text = summary["summary_text"]
-            existing_summary.characters = summary["characters"]
-            existing_summary.plot_threads = summary["plot_threads"]
-            existing_summary.world_details = summary["world_details"]
-            existing_summary.style_notes = summary["style_notes"]
-            existing_summary.source_document_count = session.query(ContextDocument).filter(
-                ContextDocument.book_id == book_id
-            ).count() + 1
-            existing_summary.source_word_count = summary["source_word_count"]
-            session.commit()
-        finally:
-            session.close()
-
-        _set_job_progress(job_id, "completed", "Context ready for editing and export.", 100)
-    except Exception as exc:
-        _set_job_progress(job_id, "failed", "Context build failed.", 100, str(exc))
-
-
-def queue_context_ingestion(book_id: int, title: str, content_text: str, source_filename: str | None = None) -> dict:
+def queue_context_ingestion(
+    book_id: int,
+    title: str,
+    content_text: str,
+    source_filename: str | None = None,
+    refine_with_libby: bool = False,
+) -> dict:
     if not context_db_enabled():
         raise RuntimeError("Context database is not configured")
 
@@ -231,7 +336,7 @@ def queue_context_ingestion(book_id: int, title: str, content_text: str, source_
     try:
         job = ContextIngestionJob(
             book_id=book_id,
-            source_type="manuscript_text",
+            source_type="manuscript_text_libby_refine" if refine_with_libby else "manuscript_text",
             source_title=title,
             source_filename=source_filename,
             status="queued",
@@ -246,17 +351,145 @@ def queue_context_ingestion(book_id: int, title: str, content_text: str, source_
         session.close()
 
     threading.Thread(
-        target=_run_ingestion,
-        args=(job_id, book_id, title, source_filename, content_text),
+        target=_run_ingestion_with_options,
+        args=(job_id, book_id, title, source_filename, content_text, refine_with_libby),
         daemon=True,
     ).start()
 
     return {
         "id": job_id,
+        "source_type": "manuscript_text_libby_refine" if refine_with_libby else "manuscript_text",
         "status": "queued",
         "progress_message": "Queued for context build...",
         "progress_percent": 0,
     }
+
+
+def _run_ingestion_with_options(
+    job_id: int,
+    book_id: int,
+    title: str,
+    source_filename: str | None,
+    content_text: str,
+    refine_with_libby: bool,
+):
+    try:
+        _set_job_progress(job_id, "processing", "Gaining context from manuscript...", 15)
+        summary = _build_summary(content_text)
+
+        _set_job_progress(job_id, "processing", "Keeping up with characters and plot threads...", 45)
+        session = get_context_session()
+        try:
+            document = ContextDocument(
+                book_id=book_id,
+                title=title,
+                source_type="manuscript_text",
+                source_filename=source_filename,
+                content_text=content_text,
+                word_count=len(content_text.split()),
+            )
+            session.add(document)
+            session.commit()
+        finally:
+            session.close()
+
+        libby_warning: str | None = None
+        if refine_with_libby:
+            _set_job_progress(job_id, "processing", "Libby is refining context memory...", 72)
+            summary, libby_warning = _refine_summary_with_libby(book_id, title, content_text, summary)
+
+        _save_context_result(book_id, summary)
+
+        completion_message = "Context ready for editing and export."
+        if refine_with_libby:
+            completion_message = (
+                "Context refined with Libby and ready for editing."
+                if libby_warning is None
+                else f"Context ready using fast parse. Libby refine skipped: {libby_warning}"
+            )
+        _set_job_progress(job_id, "completed", completion_message, 100)
+    except Exception as exc:
+        _set_job_progress(job_id, "failed", "Context build failed.", 100, str(exc))
+
+
+def queue_context_refinement(book_id: int) -> dict:
+    if not context_db_enabled():
+        raise RuntimeError("Context database is not configured")
+
+    session = get_context_session()
+    try:
+        latest_document = session.query(ContextDocument).filter(
+            ContextDocument.book_id == book_id
+        ).order_by(ContextDocument.updated_at.desc()).first()
+        existing_summary = session.query(ContextSummary).filter(ContextSummary.book_id == book_id).first()
+        if latest_document is None or existing_summary is None:
+            raise RuntimeError("No existing context source is available to refine yet")
+
+        job = ContextIngestionJob(
+            book_id=book_id,
+            source_type="context_refinement",
+            source_title=latest_document.title,
+            source_filename=latest_document.source_filename,
+            status="queued",
+            progress_message="Queued for Libby context refinement...",
+            progress_percent=0,
+        )
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        job_id = job.id
+    finally:
+        session.close()
+
+    threading.Thread(
+        target=_run_context_refinement,
+        args=(job_id, book_id),
+        daemon=True,
+    ).start()
+
+    return {
+        "id": job_id,
+        "source_type": "context_refinement",
+        "status": "queued",
+        "progress_message": "Queued for Libby context refinement...",
+        "progress_percent": 0,
+    }
+
+
+def _run_context_refinement(job_id: int, book_id: int):
+    try:
+        _set_job_progress(job_id, "processing", "Loading existing context memory for Libby...", 20)
+        session = get_context_session()
+        try:
+            latest_document = session.query(ContextDocument).filter(
+                ContextDocument.book_id == book_id
+            ).order_by(ContextDocument.updated_at.desc()).first()
+            existing_summary = session.query(ContextSummary).filter(ContextSummary.book_id == book_id).first()
+            if latest_document is None or existing_summary is None:
+                raise RuntimeError("No existing context source is available to refine yet")
+
+            base_summary = {
+                "summary_text": existing_summary.summary_text or "",
+                "characters": existing_summary.characters or [],
+                "plot_threads": existing_summary.plot_threads or [],
+                "world_details": existing_summary.world_details or [],
+                "style_notes": existing_summary.style_notes or [],
+                "source_word_count": existing_summary.source_word_count or latest_document.word_count,
+            }
+            source_title = latest_document.title
+            content_text = latest_document.content_text
+        finally:
+            session.close()
+
+        _set_job_progress(job_id, "processing", "Libby is deduplicating and refining context...", 70)
+        refined_summary, libby_warning = _refine_summary_with_libby(book_id, source_title, content_text, base_summary)
+        _save_context_result(book_id, refined_summary)
+        if libby_warning:
+            _set_job_progress(job_id, "completed", f"Context kept in fast mode. Libby refine skipped: {libby_warning}", 100)
+        else:
+            _set_job_progress(job_id, "completed", "Context refined with Libby.", 100)
+    except Exception as exc:
+        _set_job_progress(job_id, "failed", "Context refinement failed.", 100, str(exc))
 
 
 def update_context_summary(book_id: int, payload: dict) -> dict:

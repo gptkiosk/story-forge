@@ -15,6 +15,7 @@ class ContextIngestRequest(BaseModel):
     title: str
     content_text: str
     source_filename: str | None = None
+    refine_with_libby: bool = False
 
 
 class ContextSummaryUpdateRequest(BaseModel):
@@ -40,7 +41,17 @@ def ingest_context(request: Request, book_id: int, body: ContextIngestRequest):
             title=body.title,
             content_text=body.content_text,
             source_filename=body.source_filename,
+            refine_with_libby=body.refine_with_libby,
         )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/{book_id}/refine")
+def refine_context(request: Request, book_id: int):
+    require_auth(request)
+    try:
+        return context_engine.queue_context_refinement(book_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
