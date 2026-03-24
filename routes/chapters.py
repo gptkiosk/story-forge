@@ -8,6 +8,7 @@ from db_helpers import (
     delete_chapter, recalculate_book_word_count
 )
 from .auth_utils import require_auth
+from voice_mapping import build_chapter_voice_map
 
 router = APIRouter()
 
@@ -36,6 +37,12 @@ def create_chapter_route(request: Request, book_id: int, chapter: ChapterCreate)
     )
 
     recalculate_book_word_count(book_id)
+    build_chapter_voice_map(
+        book_id=book_id,
+        chapter_id=new_chapter.id,
+        chapter_title=new_chapter.title,
+        chapter_content=new_chapter.content or "",
+    )
     return to_chapter_response(new_chapter)
 
 
@@ -60,6 +67,13 @@ def update_chapter_route(request: Request, chapter_id: int, chapter: ChapterUpda
 
     if chapter.content is not None:
         recalculate_book_word_count(updated.book_id)
+
+    build_chapter_voice_map(
+        book_id=updated.book_id,
+        chapter_id=updated.id,
+        chapter_title=updated.title,
+        chapter_content=updated.content or "",
+    )
 
     return to_chapter_response(updated)
 

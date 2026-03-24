@@ -247,6 +247,10 @@ def _save_context_result(book_id: int, summary: dict):
     finally:
         session.close()
 
+    from voice_mapping import sync_character_voices
+
+    sync_character_voices(book_id)
+
 
 def get_context_state(book_id: int) -> dict:
     if not context_db_enabled():

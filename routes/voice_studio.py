@@ -5,11 +5,12 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
 from pydantic import BaseModel
-from db_helpers import get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
+from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
 from .auth_utils import require_auth
 
 import tts as tts_module
+from voice_mapping import load_book_voice_map, load_chapter_voice_map
 
 router = APIRouter()
 
@@ -56,6 +57,31 @@ async def list_voices(request: Request, provider: str):
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/books/{book_id}/voice-map")
+def get_book_voice_map(request: Request, book_id: int):
+    """Get the background character voice roster for a book."""
+    require_auth(request)
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return load_book_voice_map(book_id)
+
+
+@router.get("/chapters/{chapter_id}/voice-map")
+def get_chapter_voice_map(request: Request, chapter_id: int):
+    """Get the per-chapter voice plan for narration and dialogue."""
+    require_auth(request)
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    return load_chapter_voice_map(
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        chapter_content=chapter.content or "",
+    )
 
 
 @router.post("/generate")

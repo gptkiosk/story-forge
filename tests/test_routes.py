@@ -336,3 +336,56 @@ class TestLibbyWorkflowRoutes:
         assert "---" not in generated["content"]
         assert "—" not in generated["content"]
         assert generated["order"] == 2
+
+
+class TestVoiceMappingRoutes:
+    def test_chapter_voice_map_tracks_characters_and_segments(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Voice Map Book",
+                "author": "Tester",
+                "description": "Voice map test",
+                "status": "draft",
+            },
+        )
+        assert book_response.status_code == 200
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        assert chapter_response.status_code == 200
+        chapter_id = chapter_response.json()["id"]
+
+        update_response = client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": 'Jamal scanned the corridor. "We are not alone," Mira whispered. "Stay close," Jamal said.',
+            },
+        )
+        assert update_response.status_code == 200
+
+        roster_response = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert roster_response.status_code == 200
+        roster = roster_response.json()
+        names = [entry["character_name"] for entry in roster["characters"]]
+        assert "Jamal" in names
+        assert "Mira" in names
+
+        chapter_map_response = client.get(f"/api/voice-studio/chapters/{chapter_id}/voice-map")
+        assert chapter_map_response.status_code == 200
+        chapter_map = chapter_map_response.json()
+        assert any(segment["type"] == "dialogue" for segment in chapter_map["segments"])
+        assert any(segment["speaker"] == "Mira" for segment in chapter_map["segments"])

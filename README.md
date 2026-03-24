@@ -130,6 +130,7 @@ Current behavior:
 - Libby calls are routed through the local `openclaw` CLI
 - Story Forge talks to Libby using the OpenClaw agent channel
 - JSON-only prompts are used for context refinement, next-chapter ideas, and draft generation
+- Chapter creation and chapter edits now build background voice-map JSON artifacts for Voice Studio, including a per-book character roster and a per-chapter narration/dialogue plan.
 - Response parsing is hardened for OpenClaw’s nested `result.payloads[].text` output shape
 
 ## Running Locally
