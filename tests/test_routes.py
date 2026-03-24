@@ -462,15 +462,27 @@ class TestVoiceMappingRoutes:
             json={
                 "segments": [
                     {
+                        "type": "dialogue",
+                        "speaker": "Jamal",
+                        "text": "Status report,",
+                        "delivery_hint": "neutral",
+                    },
+                    {
                         "type": "narration",
                         "speaker": "Narrator",
-                        "text": "The corridor lights dimmed.",
+                        "text": "Jamal said.",
                         "delivery_hint": "neutral",
                     },
                     {
                         "type": "dialogue",
                         "speaker": "Mira",
-                        "text": "We are losing power.",
+                        "text": "We are losing power,",
+                        "delivery_hint": "quiet",
+                    },
+                    {
+                        "type": "narration",
+                        "speaker": "Narrator",
+                        "text": "Mira whispered.",
                         "delivery_hint": "quiet",
                     },
                 ],
@@ -478,5 +490,57 @@ class TestVoiceMappingRoutes:
         )
         assert save_chapter_map_response.status_code == 200
         saved_chapter_map = save_chapter_map_response.json()
-        assert saved_chapter_map["segments"][1]["speaker"] == "Mira"
-        assert saved_chapter_map["segments"][1]["delivery_hint"] == "quiet"
+        assert saved_chapter_map["segments"][2]["speaker"] == "Mira"
+        assert saved_chapter_map["segments"][2]["delivery_hint"] == "quiet"
+        assert saved_chapter_map["coverage_ratio"] >= 0.96
+
+    def test_voice_map_save_rejects_missing_coverage(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Voice Coverage Book",
+                "author": "Tester",
+                "description": "Coverage test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": 'Jamal scanned the corridor. "We are not alone," Mira whispered. "Stay close," Jamal said.',
+            },
+        )
+
+        save_response = client.put(
+            f"/api/voice-studio/chapters/{chapter_id}/voice-map",
+            json={
+                "segments": [
+                    {
+                        "type": "dialogue",
+                        "speaker": "Mira",
+                        "text": "We are not alone.",
+                        "delivery_hint": "quiet",
+                    }
+                ],
+            },
+        )
+        assert save_response.status_code == 400
+        assert "does not fully cover" in save_response.json()["detail"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +26,7 @@ ATTRIBUTION_VERBS = (
     "answered", "snapped", "sighed", "called", "cried", "warned", "added",
     "told", "muttered", "breathed", "growled", "laughed", "sobbed",
 )
+ATTRIBUTION_VERB_PATTERN = "|".join(ATTRIBUTION_VERBS)
 
 LOW_SIGNAL_NAMES = {
     "The", "A", "An", "And", "But", "Or", "If", "In", "On", "At", "By", "For",
@@ -33,11 +35,23 @@ LOW_SIGNAL_NAMES = {
     "How", "Who", "Whom", "Which", "There", "Then", "Here", "After", "Before",
     "Because", "While", "Though", "Through", "Across", "Inside", "Outside", "Today",
     "Tomorrow", "Yesterday", "Morning", "Evening", "Night", "Day", "Year", "Years",
-    "Month", "Months", "Week", "Weeks", "Yes", "No", "Okay",
+    "Month", "Months", "Week", "Weeks", "Yes", "No", "Okay", "Later", "Soon",
+    "Suddenly", "Finally", "Meanwhile", "Still", "Everything", "Nothing", "Something",
+    "Someone", "Everybody", "Nobody", "Implant", "Era", "Origins", "Back",
 }
 
 QUOTE_PATTERN = re.compile(r'["“](.+?)["”]', re.DOTALL)
 NAME_PATTERN = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
+ATTRIBUTION_NAME_PATTERN = re.compile(
+    rf'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:{ATTRIBUTION_VERB_PATTERN})\b'
+)
+
+DIALOGUE_COVERAGE_MIN_RATIO = 0.96
+DIALOGUE_COVERAGE_MIN_LENGTH = 0.95
+
+
+class VoiceMapValidationError(ValueError):
+    """Raised when a saved voice map would lose chapter coverage."""
 
 
 def _book_dir(book_id: int) -> Path:
@@ -56,9 +70,30 @@ def get_chapter_voice_map_path(book_id: int, chapter_id: int) -> Path:
     return chapter_dir / f"chapter_{chapter_id}_voice_map.json"
 
 
+def _extract_attributed_names(text: str) -> list[str]:
+    names: list[str] = []
+    seen: set[str] = set()
+    for match in ATTRIBUTION_NAME_PATTERN.findall(text or ""):
+        normalized = match.strip(".,!?;:\"'()[]{}")
+        lowered = normalized.lower()
+        if not normalized or normalized in LOW_SIGNAL_NAMES or lowered in seen:
+            continue
+        seen.add(lowered)
+        names.append(normalized)
+    return names
+
+
 def _extract_candidate_names(text: str) -> list[str]:
     counts: dict[str, int] = {}
     display: dict[str, str] = {}
+    attributed = _extract_attributed_names(text)
+    attributed_set = {name.lower() for name in attributed}
+
+    for name in attributed:
+        lowered = name.lower()
+        counts[lowered] = counts.get(lowered, 0) + 4
+        display.setdefault(lowered, name)
+
     for raw in NAME_PATTERN.findall(text or ""):
         normalized = raw.strip(".,!?;:\"'()[]{}")
         lowered = normalized.lower()
@@ -70,8 +105,15 @@ def _extract_candidate_names(text: str) -> list[str]:
             continue
         counts[lowered] = counts.get(lowered, 0) + 1
         display.setdefault(lowered, normalized)
+
     ranked = sorted(counts.items(), key=lambda item: (-item[1], display[item[0]]))
-    return [display[key] for key, count in ranked if count > 0][:16]
+    results: list[str] = []
+    for key, count in ranked:
+        name = display[key]
+        if count < 2 and " " not in name and key not in attributed_set:
+            continue
+        results.append(name)
+    return results[:16]
 
 
 def _get_context_characters(book_id: int) -> list[str]:
@@ -240,20 +282,17 @@ def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict |
 
 
 def _find_speaker(before_window: str, after_window: str, known_names: list[str]) -> str:
-    verbs = "|".join(ATTRIBUTION_VERBS)
+    patterns = []
+    for name in known_names:
+        escaped = re.escape(name)
+        patterns.append((name, rf"\b{escaped}\b[^\n.?!]{{0,40}}\b(?:{ATTRIBUTION_VERB_PATTERN})\b"))
+        patterns.append((name, rf"\b(?:{ATTRIBUTION_VERB_PATTERN})\b[^\n.?!]{{0,40}}\b{escaped}\b"))
 
-    def _match(window: str) -> str | None:
-        for name in known_names:
-            escaped = re.escape(name)
-            patterns = (
-                rf"\b{escaped}\b[^\n.?!]{{0,40}}\b(?:{verbs})\b",
-                rf"\b(?:{verbs})\b[^\n.?!]{{0,40}}\b{escaped}\b",
-            )
-            if any(re.search(pattern, window, flags=re.IGNORECASE) for pattern in patterns):
+    for window in (after_window, before_window):
+        for name, pattern in patterns:
+            if re.search(pattern, window, flags=re.IGNORECASE):
                 return name
-        return None
-
-    return _match(after_window) or _match(before_window) or "unassigned_dialogue"
+    return "Narrator"
 
 
 def _guess_delivery(dialogue_text: str, context: str) -> str:
@@ -267,6 +306,25 @@ def _guess_delivery(dialogue_text: str, context: str) -> str:
     if any(word in lowered for word in ("sobbed", "crying", "sighed")):
         return "heavy"
     return "neutral"
+
+
+def _normalize_coverage_text(value: str) -> str:
+    sanitized = value.replace('“', ' ').replace('”', ' ').replace('"', ' ')
+    sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+    return sanitized
+
+
+def _coverage_metrics(chapter_content: str, segments: list[dict]) -> tuple[float, float]:
+    original = _normalize_coverage_text(chapter_content)
+    combined = _normalize_coverage_text(' '.join(str(segment.get('text') or '').strip() for segment in segments))
+    if not original:
+        return 1.0, 1.0
+    if not combined:
+        return 0.0, 0.0
+    return (
+        len(combined) / max(len(original), 1),
+        SequenceMatcher(None, original, combined).ratio(),
+    )
 
 
 def _segment_text(chapter_content: str, known_names: list[str]) -> list[dict]:
@@ -330,25 +388,48 @@ def _normalize_segment(index: int, segment: dict) -> dict:
     segment_type = str(segment.get("type") or "narration").strip().lower()
     if segment_type not in {"narration", "dialogue"}:
         segment_type = "narration"
+    speaker = str(segment.get("speaker") or ("Narrator" if segment_type == "narration" else "Narrator")).strip() or "Narrator"
+    if speaker == "unassigned_dialogue":
+        speaker = "Narrator"
     return {
         "index": index,
         "type": segment_type,
-        "speaker": str(segment.get("speaker") or ("Narrator" if segment_type == "narration" else "unassigned_dialogue")).strip() or "Narrator",
+        "speaker": speaker,
         "text": str(segment.get("text") or "").strip(),
         "delivery_hint": str(segment.get("delivery_hint") or "neutral").strip() or "neutral",
     }
 
 
+def _finalize_segments(chapter_content: str, segments: list[dict]) -> list[dict]:
+    finalized: list[dict] = []
+    for index, segment in enumerate(segments, start=1):
+        normalized = _normalize_segment(index, segment)
+        if not normalized["text"]:
+            continue
+        finalized.append(normalized)
+
+    length_ratio, similarity_ratio = _coverage_metrics(chapter_content, finalized)
+    if length_ratio < DIALOGUE_COVERAGE_MIN_LENGTH or similarity_ratio < DIALOGUE_COVERAGE_MIN_RATIO:
+        raise VoiceMapValidationError(
+            f"Chapter voice plan does not fully cover the chapter text yet (coverage {similarity_ratio:.0%}). Adjust segments before saving."
+        )
+    return finalized
+
+
 def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     roster = sync_character_voices(book_id=book_id, chapter_content=chapter_content)
     known_names = [entry["character_name"] for entry in roster["characters"]]
+    segments = _finalize_segments(chapter_content, _segment_text(chapter_content, known_names))
+    _, similarity_ratio = _coverage_metrics(chapter_content, segments)
     payload = {
         "book_id": book_id,
         "chapter_id": chapter_id,
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster["characters"],
-        "segments": _segment_text(chapter_content, known_names),
+        "segments": segments,
+        "coverage_ratio": round(similarity_ratio, 4),
+        "unassigned_segment_count": 0,
     }
     _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
     return payload
@@ -358,6 +439,7 @@ def update_chapter_voice_map(
     book_id: int,
     chapter_id: int,
     chapter_title: str,
+    chapter_content: str,
     segments: list[dict],
     characters: list[dict] | None = None,
 ) -> dict:
@@ -365,13 +447,17 @@ def update_chapter_voice_map(
     roster_characters = roster.get("characters") or []
     if characters is not None:
         roster_characters = [_normalize_character_payload(entry) for entry in characters if entry]
+    finalized_segments = _finalize_segments(chapter_content, segments)
+    _, similarity_ratio = _coverage_metrics(chapter_content, finalized_segments)
     payload = {
         "book_id": book_id,
         "chapter_id": chapter_id,
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster_characters,
-        "segments": [_normalize_segment(index, segment) for index, segment in enumerate(segments, start=1)],
+        "segments": finalized_segments,
+        "coverage_ratio": round(similarity_ratio, 4),
+        "unassigned_segment_count": 0,
     }
     _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
     return payload
@@ -397,5 +483,8 @@ def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, ch
     if payload is None:
         return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
     payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
-    payload["segments"] = [_normalize_segment(index, segment) for index, segment in enumerate(payload.get("segments") or [], start=1)]
+    payload["segments"] = _finalize_segments(chapter_content, payload.get("segments") or [])
+    _, similarity_ratio = _coverage_metrics(chapter_content, payload["segments"])
+    payload["coverage_ratio"] = round(similarity_ratio, 4)
+    payload["unassigned_segment_count"] = 0
     return payload

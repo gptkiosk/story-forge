@@ -11,6 +11,7 @@ from .auth_utils import require_auth
 
 import tts as tts_module
 from voice_mapping import (
+    VoiceMapValidationError,
     load_book_voice_map,
     load_chapter_voice_map,
     update_book_voice_map,
@@ -116,13 +117,17 @@ def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoice
     chapter = get_chapter_with_tts_jobs(chapter_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="Chapter not found")
-    return update_chapter_voice_map(
-        book_id=chapter.book_id,
-        chapter_id=chapter.id,
-        chapter_title=chapter.title,
-        segments=body.segments,
-        characters=body.characters,
-    )
+    try:
+        return update_chapter_voice_map(
+            book_id=chapter.book_id,
+            chapter_id=chapter.id,
+            chapter_title=chapter.title,
+            chapter_content=chapter.content or "",
+            segments=body.segments,
+            characters=body.characters,
+        )
+    except VoiceMapValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/generate")
