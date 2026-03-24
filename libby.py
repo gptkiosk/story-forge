@@ -10,14 +10,12 @@ Libby is an OpenClaw publishing expert agent that helps with:
 Libby connects via her OpenClaw agent API endpoint.
 """
 
-import json
 import logging
 import os
+import shutil
+import subprocess
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
-
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +23,10 @@ logger = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-# Libby's OpenClaw agent endpoint
+LIBBY_TRANSPORT = os.environ.get("LIBBY_TRANSPORT", "openclaw")
 LIBBY_API_URL = os.environ.get("LIBBY_API_URL", "http://localhost:8100")
 LIBBY_TIMEOUT = int(os.environ.get("LIBBY_TIMEOUT", "120"))
+LIBBY_AGENT_ID = os.environ.get("LIBBY_AGENT_ID", "libby")
 
 
 class SubmissionType:
@@ -63,12 +62,9 @@ class LibbyClient:
 
     async def is_available(self) -> bool:
         """Check if Libby is reachable."""
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{self.api_url}/health")
-                return response.status_code == 200
-        except Exception:
-            return False
+        if LIBBY_TRANSPORT == "openclaw":
+            return self._openclaw_available()
+        return False
 
     async def submit_chapter_for_review(
         self,
@@ -229,40 +225,174 @@ class LibbyClient:
         return await self._send_request("/process", payload)
 
     async def _send_request(self, endpoint: str, payload: dict) -> dict:
-        """Send a request to Libby's API."""
+        """Send a request to Libby."""
+        if LIBBY_TRANSPORT == "openclaw":
+            return self._send_via_openclaw(payload)
+        return {
+            "success": False,
+            "error": "Unsupported Libby transport. Configure LIBBY_TRANSPORT=openclaw.",
+        }
+
+    def _openclaw_available(self) -> bool:
+        if shutil.which("openclaw") is None:
+            return False
         try:
-            async with httpx.AsyncClient(timeout=float(self.timeout)) as client:
-                response = await client.post(
-                    f"{self.api_url}{endpoint}",
-                    json=payload,
-                )
+            result = subprocess.run(
+                ["openclaw", "sessions", "--agent", LIBBY_AGENT_ID, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            return result.returncode == 0 and '"count"' in result.stdout
+        except Exception:
+            return False
 
-                if response.status_code != 200:
-                    return {
-                        "success": False,
-                        "error": f"Libby returned status {response.status_code}: {response.text}",
-                    }
+    def _send_via_openclaw(self, payload: dict) -> dict:
+        if shutil.which("openclaw") is None:
+            return {
+                "success": False,
+                "error": "OpenClaw CLI is not installed or not on PATH.",
+            }
 
-                return {
-                    "success": True,
-                    **response.json(),
-                }
-
-        except httpx.TimeoutException:
+        prompt = self._build_openclaw_prompt(payload)
+        try:
+            result = subprocess.run(
+                [
+                    "openclaw",
+                    "agent",
+                    "--agent",
+                    LIBBY_AGENT_ID,
+                    "--message",
+                    prompt,
+                    "--timeout",
+                    str(self.timeout),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout + 15,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
             return {
                 "success": False,
                 "error": "Libby is taking too long to respond. She may be processing a large request.",
             }
-        except httpx.ConnectError:
+        except Exception as exc:
             return {
                 "success": False,
-                "error": "Cannot reach Libby. Make sure she is running and LIBBY_API_URL is configured correctly.",
+                "error": f"Error communicating with Libby through OpenClaw: {exc}",
             }
-        except Exception as e:
+
+        if result.returncode != 0:
+            error_text = (result.stderr or result.stdout or "").strip()
             return {
                 "success": False,
-                "error": f"Error communicating with Libby: {str(e)}",
+                "error": error_text or "Libby agent command failed.",
             }
+
+        try:
+            response = self._parse_openclaw_result(result.stdout)
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": f"Libby returned an unreadable response: {exc}",
+            }
+
+        return {
+            "success": True,
+            **response,
+        }
+
+    def _build_openclaw_prompt(self, payload: dict) -> str:
+        request_type = payload.get("type")
+        shared_rules = (
+            "You are responding to Story Forge app traffic. "
+            "Return JSON only, with no markdown fences or extra commentary. "
+            "Do not invent facts beyond the supplied context."
+        )
+
+        if request_type == SubmissionType.CONTEXT_REFINEMENT:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: refine context memory.\n"
+                "Output keys: summary_text, characters, plot_threads, world_details, style_notes.\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.NEXT_CHAPTER_IDEAS:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: provide exactly 3 next chapter ideas.\n"
+                "Output shape: {\"ideas\":[{\"title\":\"...\",\"direction\":\"...\",\"rationale\":\"...\"}]}\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.STORY_DIRECTION:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: draft one chapter from the supplied story direction.\n"
+                "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.CHAPTER_REVIEW:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: review the chapter and return structured editorial notes as JSON.\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.CHAPTER_REWRITE:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: rewrite the chapter based on the feedback.\n"
+                "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.CONTEXT_UPDATE:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: acknowledge context update and return JSON.\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        return f"{shared_rules}\n\nPayload:\n{json_dumps(payload)}"
+
+    def _parse_openclaw_result(self, stdout: str) -> dict:
+        data = json_loads(stdout)
+        for key in ("reply", "message"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                parsed = try_parse_json_block(value)
+                if parsed is not None:
+                    return parsed
+                return {"output": value.strip()}
+            if isinstance(value, dict):
+                return value
+        return data
+
+
+def try_parse_json_block(value: str) -> dict | None:
+    stripped = value.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if stripped.startswith("json"):
+            stripped = stripped[4:].strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            parsed = json_loads(stripped)
+        except Exception:
+            return None
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
+def json_dumps(value: dict) -> str:
+    import json
+    return json.dumps(value, indent=2, ensure_ascii=True)
+
+
+def json_loads(value: str):
+    import json
+    return json.loads(value)
 
 
 # Global client instance
