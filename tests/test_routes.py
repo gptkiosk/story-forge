@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 import context_engine
 import db
 import db_helpers
+import libby
 from db import Base
 from fastapi_app import app
 
@@ -233,3 +234,103 @@ class TestContextRoutes:
         export_payload = export_response.json()
         assert export_payload["book_id"] == 42
         assert export_payload["summary"]["summary_text"] == "Revised summary"
+
+
+class TestLibbyWorkflowRoutes:
+    def test_next_chapter_ideas_and_generate(self, tmp_path, monkeypatch):
+        test_session_local = make_test_session_factory(tmp_path)
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+
+        monkeypatch.setattr(
+            context_engine,
+            "get_context_state",
+            lambda book_id: {
+                "enabled": True,
+                "status": "ready",
+                "summary": {
+                    "summary_text": "Context summary",
+                    "characters": ["Jamal", "Mira"],
+                    "plot_threads": ["The station is unstable."],
+                    "world_details": ["Europa colony rules are tightening."],
+                    "style_notes": ["Propulsive pacing."],
+                    "source_document_count": 1,
+                    "source_word_count": 1600,
+                    "updated_at": datetime.now().isoformat(),
+                },
+                "latest_job": None,
+                "documents": [],
+            },
+        )
+
+        async def fake_suggest_next_chapter_ideas(**kwargs):
+            assert kwargs["chapter_count"] == 1
+            return {
+                "success": True,
+                "ideas": [
+                    {
+                        "title": "Reactor Fracture",
+                        "direction": "Jamal discovers the reactor sabotage points to someone inside the council.",
+                        "rationale": "Escalates the core mystery while deepening political tension.",
+                    },
+                    {
+                        "title": "Mira's Gamble",
+                        "direction": "Mira takes an unauthorized trip into maintenance tunnels to verify a rumor.",
+                        "rationale": "Keeps the story close to the main pair and raises risk.",
+                    },
+                    {
+                        "title": "Signal from Europa",
+                        "direction": "A coded transmission reveals a hidden survivor tied to book one's fallout.",
+                        "rationale": "Links prior continuity into the next chapter cleanly.",
+                    },
+                ],
+            }
+
+        async def fake_submit_story_direction(**kwargs):
+            assert "story_direction" in kwargs
+            return {
+                "success": True,
+                "chapter_title": "Chapter 2 - Reactor Fracture",
+                "chapter_content": "Jamal followed the humming conduit into the dark...",
+            }
+
+        monkeypatch.setattr(libby.libby_client, "suggest_next_chapter_ideas", fake_suggest_next_chapter_ideas)
+        monkeypatch.setattr(libby.libby_client, "submit_story_direction", fake_submit_story_direction)
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Libby Workflow Book",
+                "author": "Tester",
+                "description": "Workflow test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        assert chapter_response.status_code == 200
+
+        ideas_response = client.post(f"/api/books/{book_id}/next-chapter/ideas", json={"refresh": True})
+        assert ideas_response.status_code == 200
+        ideas = ideas_response.json()["ideas"]
+        assert len(ideas) == 3
+        assert ideas[0]["title"] == "Reactor Fracture"
+
+        generate_response = client.post(
+            f"/api/books/{book_id}/next-chapter/generate",
+            json={
+                "direction": ideas[0]["direction"],
+                "chapter_title": "Chapter 2 - Reactor Fracture",
+            },
+        )
+        assert generate_response.status_code == 200
+        generated = generate_response.json()
+        assert generated["title"] == "Chapter 2 - Reactor Fracture"
+        assert generated["content"].startswith("Jamal followed")
+        assert generated["order"] == 2

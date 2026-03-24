@@ -37,6 +37,7 @@ class SubmissionType:
     STORY_DIRECTION = "story_direction"        # Submit story direction for chapter creation
     CONTEXT_UPDATE = "context_update"          # Update Libby's story context
     CONTEXT_REFINEMENT = "context_refinement"  # Refine extracted story context
+    NEXT_CHAPTER_IDEAS = "next_chapter_ideas"  # Generate next chapter scenarios
 
 
 class SubmissionStatus:
@@ -148,6 +149,28 @@ class LibbyClient:
             "timestamp": datetime.now().isoformat(),
         }
 
+        return await self._send_request("/process", payload)
+
+    async def suggest_next_chapter_ideas(
+        self,
+        *,
+        story_context: dict,
+        chapter_count: int,
+        current_book_title: str,
+    ) -> dict:
+        payload = {
+            "type": SubmissionType.NEXT_CHAPTER_IDEAS,
+            "story_context": story_context,
+            "chapter_count": chapter_count,
+            "current_book_title": current_book_title,
+            "instructions": (
+                "Suggest exactly three distinct next-chapter scenarios for this book. "
+                "Each scenario should be plausible from the current continuity, concise, "
+                "and actionable for drafting. Return JSON with an ideas array. Each idea "
+                "should include title, direction, and rationale."
+            ),
+            "timestamp": datetime.now().isoformat(),
+        }
         return await self._send_request("/process", payload)
 
     async def update_context(self, story_context: dict, book_id: int) -> dict:
