@@ -3,14 +3,19 @@ Voice Studio / TTS routes for Story Forge API
 """
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
 from .auth_utils import require_auth
 
 import tts as tts_module
-from voice_mapping import load_book_voice_map, load_chapter_voice_map
+from voice_mapping import (
+    load_book_voice_map,
+    load_chapter_voice_map,
+    update_book_voice_map,
+    update_chapter_voice_map,
+)
 
 router = APIRouter()
 
@@ -20,6 +25,16 @@ class GenerateRequest(BaseModel):
     provider: str = "elevenlabs"
     voice_id: str = ""
     model: Optional[str] = None
+
+
+class BookVoiceMapUpdateRequest(BaseModel):
+    characters: list[dict[str, Any]]
+    narrator: Optional[dict[str, Any]] = None
+
+
+class ChapterVoiceMapUpdateRequest(BaseModel):
+    segments: list[dict[str, Any]]
+    characters: Optional[list[dict[str, Any]]] = None
 
 
 @router.get("/providers")
@@ -69,6 +84,16 @@ def get_book_voice_map(request: Request, book_id: int):
     return load_book_voice_map(book_id)
 
 
+@router.put("/books/{book_id}/voice-map")
+def save_book_voice_map(request: Request, book_id: int, body: BookVoiceMapUpdateRequest):
+    """Save the background character voice roster for a book."""
+    require_auth(request)
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return update_book_voice_map(book_id=book_id, characters=body.characters, narrator=body.narrator)
+
+
 @router.get("/chapters/{chapter_id}/voice-map")
 def get_chapter_voice_map(request: Request, chapter_id: int):
     """Get the per-chapter voice plan for narration and dialogue."""
@@ -81,6 +106,22 @@ def get_chapter_voice_map(request: Request, chapter_id: int):
         chapter_id=chapter.id,
         chapter_title=chapter.title,
         chapter_content=chapter.content or "",
+    )
+
+
+@router.put("/chapters/{chapter_id}/voice-map")
+def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoiceMapUpdateRequest):
+    """Save the per-chapter voice plan for narration and dialogue."""
+    require_auth(request)
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    return update_chapter_voice_map(
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        segments=body.segments,
+        characters=body.characters,
     )
 
 
@@ -108,7 +149,6 @@ async def generate_speech(request: Request, body: GenerateRequest):
             detail=f"{body.provider} API key not configured. Set {body.provider.upper()}_API_KEY environment variable."
         )
 
-    # Create TTS job record
     session = get_session()
     try:
         job = TTSJob(
@@ -125,7 +165,6 @@ async def generate_speech(request: Request, body: GenerateRequest):
     finally:
         session.close()
 
-    # Generate speech
     tts_request = tts_module.TTSRequest(
         text=chapter.content,
         provider=tts_provider,
@@ -135,7 +174,6 @@ async def generate_speech(request: Request, body: GenerateRequest):
 
     response = await manager.generate_speech(tts_request)
 
-    # Update job with result
     session = get_session()
     try:
         job = session.query(TTSJob).filter(TTSJob.id == job_id).first()
@@ -143,7 +181,6 @@ async def generate_speech(request: Request, body: GenerateRequest):
             job.status = TTSJobStatus.FAILED
             job.error_message = response.error
         else:
-            # Save audio file
             audio_path = tts_module.save_audio_file(
                 book_id=chapter.book_id,
                 chapter_id=chapter.id,
@@ -228,7 +265,6 @@ def configure_provider(request: Request, body: dict):
         keychain_key = f"story-forge-{provider}-api-key"
         keyring.set_password("story-forge", keychain_key, api_key)
 
-        # Reinitialize the provider with new key
         manager = tts_module.tts_manager
         if provider == "minimax":
             manager._minimax = tts_module.MiniMaxProvider(api_key=api_key)

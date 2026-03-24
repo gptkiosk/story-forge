@@ -87,6 +87,27 @@ def _get_context_characters(book_id: int) -> list[str]:
         session.close()
 
 
+def _normalize_voice_settings(settings: dict | None) -> dict:
+    merged = dict(ELEVENLABS_DEFAULT_SETTINGS)
+    if isinstance(settings, dict):
+        for key in merged:
+            if key in settings and settings[key] is not None:
+                merged[key] = settings[key]
+    return merged
+
+
+def _normalize_character_payload(entry: dict) -> dict:
+    return {
+        "character_name": str(entry.get("character_name") or "").strip(),
+        "voice_name": str(entry.get("voice_name") or "").strip() or None,
+        "gender": str(entry.get("gender") or "").strip() or None,
+        "description": str(entry.get("description") or "").strip() or None,
+        "minimax_voice_id": str(entry.get("minimax_voice_id") or "").strip() or None,
+        "elevenlabs_voice_id": str(entry.get("elevenlabs_voice_id") or "").strip() or None,
+        "elevenlabs_voice_settings": _normalize_voice_settings(entry.get("elevenlabs_voice_settings")),
+    }
+
+
 def _serialize_character_voice(character_voice: CharacterVoice) -> dict:
     return {
         "character_name": character_voice.character_name,
@@ -95,7 +116,7 @@ def _serialize_character_voice(character_voice: CharacterVoice) -> dict:
         "description": character_voice.description,
         "minimax_voice_id": character_voice.minimax_voice_id,
         "elevenlabs_voice_id": character_voice.elevenlabs_voice_id,
-        "elevenlabs_voice_settings": ELEVENLABS_DEFAULT_SETTINGS,
+        "elevenlabs_voice_settings": _normalize_voice_settings(None),
     }
 
 
@@ -104,8 +125,16 @@ def _write_json(path: Path, payload: dict):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=True))
     except OSError:
-        # Tests and restricted environments may not allow sidecar artifact writes.
         return
+
+
+def _read_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
@@ -149,7 +178,59 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
             "characters": [_serialize_character_voice(row) for row in rows],
             "narrator": {
                 "character_name": "Narrator",
-                "elevenlabs_voice_settings": ELEVENLABS_DEFAULT_SETTINGS,
+                "elevenlabs_voice_settings": _normalize_voice_settings(None),
+            },
+        }
+        _write_json(get_book_voice_map_path(book_id), payload)
+        return payload
+    finally:
+        session.close()
+
+
+def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict | None = None) -> dict:
+    cleaned_characters = []
+    seen: set[str] = set()
+    for entry in characters:
+        normalized = _normalize_character_payload(entry)
+        if not normalized["character_name"]:
+            continue
+        lowered = normalized["character_name"].lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        cleaned_characters.append(normalized)
+
+    session = get_session()
+    try:
+        existing_rows = session.query(CharacterVoice).filter(CharacterVoice.book_id == book_id).all()
+        existing_map = {row.character_name.lower(): row for row in existing_rows}
+        submitted_names = {entry["character_name"].lower() for entry in cleaned_characters}
+
+        for lowered, row in existing_map.items():
+            if lowered not in submitted_names:
+                session.delete(row)
+
+        for entry in cleaned_characters:
+            lowered = entry["character_name"].lower()
+            row = existing_map.get(lowered)
+            if row is None:
+                row = CharacterVoice(book_id=book_id, character_name=entry["character_name"])
+                session.add(row)
+            row.character_name = entry["character_name"]
+            row.voice_name = entry["voice_name"]
+            row.gender = entry["gender"]
+            row.description = entry["description"]
+            row.minimax_voice_id = entry["minimax_voice_id"]
+            row.elevenlabs_voice_id = entry["elevenlabs_voice_id"]
+
+        session.commit()
+        payload = {
+            "book_id": book_id,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "characters": cleaned_characters,
+            "narrator": {
+                "character_name": str((narrator or {}).get("character_name") or "Narrator").strip() or "Narrator",
+                "elevenlabs_voice_settings": _normalize_voice_settings((narrator or {}).get("elevenlabs_voice_settings")),
             },
         }
         _write_json(get_book_voice_map_path(book_id), payload)
@@ -245,6 +326,19 @@ def _segment_text(chapter_content: str, known_names: list[str]) -> list[dict]:
     return segments
 
 
+def _normalize_segment(index: int, segment: dict) -> dict:
+    segment_type = str(segment.get("type") or "narration").strip().lower()
+    if segment_type not in {"narration", "dialogue"}:
+        segment_type = "narration"
+    return {
+        "index": index,
+        "type": segment_type,
+        "speaker": str(segment.get("speaker") or ("Narrator" if segment_type == "narration" else "unassigned_dialogue")).strip() or "Narrator",
+        "text": str(segment.get("text") or "").strip(),
+        "delivery_hint": str(segment.get("delivery_hint") or "neutral").strip() or "neutral",
+    }
+
+
 def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     roster = sync_character_voices(book_id=book_id, chapter_content=chapter_content)
     known_names = [entry["character_name"] for entry in roster["characters"]]
@@ -260,15 +354,48 @@ def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, c
     return payload
 
 
+def update_chapter_voice_map(
+    book_id: int,
+    chapter_id: int,
+    chapter_title: str,
+    segments: list[dict],
+    characters: list[dict] | None = None,
+) -> dict:
+    roster = load_book_voice_map(book_id)
+    roster_characters = roster.get("characters") or []
+    if characters is not None:
+        roster_characters = [_normalize_character_payload(entry) for entry in characters if entry]
+    payload = {
+        "book_id": book_id,
+        "chapter_id": chapter_id,
+        "chapter_title": chapter_title,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "characters": roster_characters,
+        "segments": [_normalize_segment(index, segment) for index, segment in enumerate(segments, start=1)],
+    }
+    _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
+    return payload
+
+
 def load_book_voice_map(book_id: int) -> dict:
     path = get_book_voice_map_path(book_id)
-    if not path.exists():
+    payload = _read_json(path)
+    if payload is None:
         return sync_character_voices(book_id)
-    return json.loads(path.read_text())
+    payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
+    narrator = payload.get("narrator") or {}
+    payload["narrator"] = {
+        "character_name": str(narrator.get("character_name") or "Narrator").strip() or "Narrator",
+        "elevenlabs_voice_settings": _normalize_voice_settings(narrator.get("elevenlabs_voice_settings")),
+    }
+    return payload
 
 
 def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     path = get_chapter_voice_map_path(book_id, chapter_id)
-    if not path.exists():
+    payload = _read_json(path)
+    if payload is None:
         return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
-    return json.loads(path.read_text())
+    payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
+    payload["segments"] = [_normalize_segment(index, segment) for index, segment in enumerate(payload.get("segments") or [], start=1)]
+    return payload

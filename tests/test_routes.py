@@ -389,3 +389,94 @@ class TestVoiceMappingRoutes:
         chapter_map = chapter_map_response.json()
         assert any(segment["type"] == "dialogue" for segment in chapter_map["segments"])
         assert any(segment["speaker"] == "Mira" for segment in chapter_map["segments"])
+
+
+    def test_voice_map_save_routes_persist_manual_edits(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Voice Edit Book",
+                "author": "Tester",
+                "description": "Voice edit test",
+                "status": "draft",
+            },
+        )
+        assert book_response.status_code == 200
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        assert chapter_response.status_code == 200
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": '"Status report," Jamal said. "We are losing power," Mira whispered.',
+            },
+        )
+
+        save_roster_response = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [
+                    {
+                        "character_name": "Jamal",
+                        "voice_name": "Lead Voice",
+                        "elevenlabs_voice_id": "voice_jamal",
+                        "description": "Steady lead",
+                        "elevenlabs_voice_settings": {"speed": 0.96},
+                    },
+                    {
+                        "character_name": "Mira",
+                        "voice_name": "Mira Voice",
+                        "elevenlabs_voice_id": "voice_mira",
+                    },
+                ],
+                "narrator": {
+                    "character_name": "Narrator",
+                    "elevenlabs_voice_settings": {"stability": 0.88},
+                },
+            },
+        )
+        assert save_roster_response.status_code == 200
+        saved_roster = save_roster_response.json()
+        assert saved_roster["characters"][0]["character_name"] == "Jamal"
+        assert saved_roster["characters"][0]["elevenlabs_voice_id"] == "voice_jamal"
+        assert saved_roster["narrator"]["elevenlabs_voice_settings"]["stability"] == 0.88
+
+        save_chapter_map_response = client.put(
+            f"/api/voice-studio/chapters/{chapter_id}/voice-map",
+            json={
+                "segments": [
+                    {
+                        "type": "narration",
+                        "speaker": "Narrator",
+                        "text": "The corridor lights dimmed.",
+                        "delivery_hint": "neutral",
+                    },
+                    {
+                        "type": "dialogue",
+                        "speaker": "Mira",
+                        "text": "We are losing power.",
+                        "delivery_hint": "quiet",
+                    },
+                ],
+            },
+        )
+        assert save_chapter_map_response.status_code == 200
+        saved_chapter_map = save_chapter_map_response.json()
+        assert saved_chapter_map["segments"][1]["speaker"] == "Mira"
+        assert saved_chapter_map["segments"][1]["delivery_hint"] == "quiet"
