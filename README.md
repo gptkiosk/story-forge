@@ -1,93 +1,89 @@
-# Story Forge
+# Story Forge Backend
 
-A self-publishing dashboard for managing books from outline to audiobook generation.
+Story Forge is a local-first publishing workflow backend for managing books, chapters, manuscript exports, backups, and text-to-speech generation.
 
-## Features
+The canonical app stack is now:
 
-- 📚 **Book Management** — Create, edit, and organize book projects with chapters
-- ✍️ **Chapter Editor** — Write chapters with word count tracking
-- 🔐 **Google OAuth** — Secure single-sign-on authentication
-- 🎙️ **Audiobook Generation** — Convert chapters to audio using MiniMax TTS (scaffolded)
-- ☁️ **Cloud Backup** — GCS backup infrastructure (scaffolded for future use)
+- FastAPI backend in this repo
+- Vue 3 frontend in the companion `story-forge-frontend` repo
+- Local Mac-hosted runtime
+- SQLite for the current writing pipeline
+- Local PostgreSQL planned for Libby/context ingestion state
 
-## Tech Stack
+## Current Features
 
-- **UI Framework**: NiceGUI (Python-native)
-- **Database**: SQLite (WAL mode)
-- **Auth**: Google OAuth 2.0
-- **TTS**: MiniMax API (scaffolded)
-- **Infrastructure**: Terraform + Cloud Run (scaffolded for future deployment)
+- Book and chapter management via `/api/books` and `/api/chapters`
+- Chapter editor workflow with automatic word-count updates
+- Manuscript exports including single-file and multi-format package flows
+- Local encrypted backups with optional USB SSD sync
+- TTS provider management and audio generation for completed chapters
+- Review-mode auth bypass for local development
+
+## Current Architecture
+
+- **API**: FastAPI
+- **Frontend**: Vue 3 + TypeScript + Vite
+- **Primary data store**: SQLite in WAL mode
+- **Planned context store**: local PostgreSQL for Libby/context workflows
+- **Auth**: Google OAuth plus local review-mode bypass
+- **TTS secrets**: macOS Keychain
+- **Backups**: local encrypted backups plus USB SSD mirror when mounted
 
 ## Running Locally
 
 ### Prerequisites
 
 - Python 3.12+
-- Google Cloud Platform account (for OAuth)
-- MiniMax API account (for TTS, optional)
+- macOS Keychain access for encrypted secrets
+- Optional Google OAuth credentials
+- Optional TTS provider credentials
 
 ### Quick Start
 
 ```bash
-# Clone and enter directory
 git clone https://github.com/gptkiosk/story-forge.git
 cd story-forge
-
-# Create virtual environment
 python -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Set environment variables
-export GOOGLE_CLIENT_ID="your-client-id"
-export GOOGLE_CLIENT_SECRET="your-client-secret"
-export PORT=8080
-
-# Run
-python main.py
+uvicorn fastapi_app:app --reload --port 8000
 ```
 
-Visit `http://localhost:8080` to use the app.
+The frontend should point at `http://localhost:8000/api`.
 
-### System Service (Mac Mini)
+### Environment Notes
 
-Run as a launchd service for 24/7 availability:
-
-```bash
-# Copy the service definition
-cp com.storyforge.plist ~/Library/LaunchAgents/
-
-# Edit the plist with your environment variables, then:
-launchctl load ~/Library/LaunchAgents/com.storyforge.plist
-launchctl start com.storyforge
-```
+- `REVIEW_MODE=true` enables local auth bypass.
+- `STORY_FORGE_USB_PATH=/Volumes/xtra-ssd` overrides the default USB backup mount path.
+- TTS provider keys can be set at runtime and are stored in macOS Keychain.
 
 ## Project Structure
 
-```
+```text
 story-forge/
-├── main.py              # NiceGUI app entry point
-├── db.py                # Database models, session, encryption
-├── auth.py              # Google OAuth handlers
-├── tts.py               # MiniMax TTS client (scaffolded)
-├── backup.py            # GCS backup (scaffolded)
-├── requirements.txt     # Python dependencies
-├── data/                 # SQLite DB and uploads (gitignored)
+├── fastapi_app.py       # FastAPI entry point
+├── routes/              # API routes
+├── db.py                # SQLAlchemy models and encryption helpers
+├── db_helpers.py        # Database access helpers
+├── backup.py            # Local encrypted backup + USB sync
+├── manuscript.py        # Manuscript export and package generation
+├── tts.py               # TTS providers and audio persistence
+├── libby.py             # Libby client integration scaffold
+├── auth.py              # OAuth/session helpers
+├── data/                # Local runtime data
 └── tests/               # Test suite
 ```
 
-## Development
+## Near-Term Roadmap
 
-```bash
-# Run tests
-pytest tests/ -v
+- Finalize frontend support for selectable manuscript export formats
+- Complete TTS testing workflow from chapter to playable audio
+- Add async context ingestion for full-manuscript reference imports
+- Add PostgreSQL-backed Libby/context state
+- Add future-facing story-direction submission flow in the UI
 
-# Lint
-ruff check . --fix
-```
+## Legacy Status
 
-## CI/CD
-
-GitHub Actions runs lint + tests on every push. Docker/GCP deployment is scaffolded but disabled — the app is designed to run as a local system service for now.
+- NiceGUI is being phased out and is no longer the canonical UI path.
+- GCS and Cloud Run assumptions are not part of the active local-first workflow.
+- Terraform files may remain as historical scaffolding, but they do not describe the current supported deployment target.

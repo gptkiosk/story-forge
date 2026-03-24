@@ -9,20 +9,26 @@ import backup as backup_module
 router = APIRouter()
 
 
+def _serialize_backup(backup: dict) -> dict:
+    filename = backup.get("filename") or backup.get("id") or ""
+    return {
+        "id": filename,
+        "filename": filename,
+        "size": backup.get("size", 0),
+        "created_at": backup.get("created_at"),
+        "book_title": backup.get("book_title", "unknown"),
+        "source": backup.get("source", "local"),
+        "backup_type": backup.get("backup_type", "local"),
+        "usb_synced": backup.get("usb_synced", False),
+    }
+
+
 @router.get("")
 def list_backups(request: Request):
     """List all backups (local + USB SSD)."""
     require_auth(request)
     backups = backup_module.list_backups()
-    return [{
-        "id": b["filename"],
-        "filename": b["filename"],
-        "size": b["size"],
-        "created_at": b.get("created_at"),
-        "book_title": b.get("book_title", "unknown"),
-        "source": b.get("source", "local"),
-        "backup_type": b.get("backup_type", "local"),
-    } for b in backups]
+    return [_serialize_backup(b) for b in backups]
 
 
 @router.post("")
@@ -31,13 +37,7 @@ def create_backup(request: Request):
     require_auth(request)
     try:
         backup = backup_module.create_backup(str(DATABASE_PATH))
-        return {
-            "id": backup["filename"],
-            "filename": backup["filename"],
-            "size": backup["size"],
-            "created_at": backup["created_at"],
-            "usb_synced": backup.get("usb_synced", False),
-        }
+        return _serialize_backup(backup)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -72,7 +72,7 @@ def get_last_backup(request: Request):
     last_backup = backup_module.get_last_backup_info()
     if not last_backup:
         return {"last_backup": None}
-    return {"last_backup": last_backup}
+    return {"last_backup": _serialize_backup(last_backup)}
 
 
 @router.get("/status")
