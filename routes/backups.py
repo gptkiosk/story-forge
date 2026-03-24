@@ -1,6 +1,7 @@
 """
 Backups routes for Story Forge API
 """
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from .auth_utils import require_auth
 from db import DATABASE_PATH
