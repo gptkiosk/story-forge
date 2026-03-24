@@ -11,15 +11,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from context_engine import get_context_state
-from db_helpers import (
-    create_chapter,
-    get_book_by_id,
-    get_chapters_for_book,
-    recalculate_book_word_count,
-    update_chapter,
-)
+from db_helpers import get_book_by_id, get_chapters_for_book
 from libby import libby_client
-from schemas import ChapterResponse, to_chapter_response
 from .auth_utils import require_auth
 
 router = APIRouter()
@@ -32,6 +25,12 @@ class NextChapterIdeasRequest(BaseModel):
 class NextChapterGenerateRequest(BaseModel):
     direction: str
     chapter_title: str | None = None
+
+
+class GeneratedChapterDraftResponse(BaseModel):
+    title: str
+    content: str
+    order: int
 
 
 def _build_story_context(book_id: int) -> dict:
@@ -202,7 +201,7 @@ def next_chapter_ideas(request: Request, book_id: int, _: NextChapterIdeasReques
     }
 
 
-@router.post("/books/{book_id}/next-chapter/generate", response_model=ChapterResponse)
+@router.post("/books/{book_id}/next-chapter/generate", response_model=GeneratedChapterDraftResponse)
 def generate_next_chapter(request: Request, book_id: int, body: NextChapterGenerateRequest):
     require_auth(request)
 
@@ -225,14 +224,8 @@ def generate_next_chapter(request: Request, book_id: int, body: NextChapterGener
         raise HTTPException(status_code=503, detail=response.get("error") or "Libby is unavailable.")
 
     generated = _parse_generated_chapter(response)
-    chapter = create_chapter(book_id=book_id, title=generated["title"] or fallback_title, order=next_order)
-    updated = update_chapter(
-        chapter.id,
+    return GeneratedChapterDraftResponse(
         title=generated["title"] or fallback_title,
         content=generated["content"],
-        word_count=len(generated["content"].split()) if generated["content"].strip() else 0,
+        order=next_order,
     )
-    recalculate_book_word_count(book_id)
-    if not updated:
-        raise HTTPException(status_code=500, detail="Generated chapter could not be saved.")
-    return to_chapter_response(updated)
