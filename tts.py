@@ -298,6 +298,7 @@ class ElevenLabsProvider(TTSProviderBase):
         return {
             "xi-api-key": self._api_key,
             "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
         }
 
     async def generate_speech(self, request: TTSRequest) -> TTSResponse:
@@ -310,12 +311,12 @@ class ElevenLabsProvider(TTSProviderBase):
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
+                # ElevenLabs expects explicit output formatting and supported voice settings.
                 payload = {
                     "text": request.text,
                     "model_id": request.model,
                     "voice_settings": {
                         "speed": request.speed,
-                        "pitch": request.pitch,
                     },
                 }
 
@@ -323,12 +324,25 @@ class ElevenLabsProvider(TTSProviderBase):
                     f"{ELEVENLABS_API_URL}/text-to-speech/{request.voice_id}",
                     headers=self._get_headers(),
                     json=payload,
+                    params={"output_format": "mp3_44100_128"},
                 )
 
                 if response.status_code != 200:
                     return TTSResponse(
                         audio_data=b"",
                         error=f"ElevenLabs API error: {response.status_code} - {response.text}"
+                    )
+
+                content_type = response.headers.get("content-type", "")
+                if "application/json" in content_type:
+                    return TTSResponse(
+                        audio_data=b"",
+                        error=f"ElevenLabs returned JSON instead of audio: {response.text}"
+                    )
+                if not response.content:
+                    return TTSResponse(
+                        audio_data=b"",
+                        error="ElevenLabs returned an empty audio payload"
                     )
 
                 # ElevenLabs returns raw audio bytes
