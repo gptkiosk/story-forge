@@ -21,6 +21,21 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Local-first access: allow localhost, LAN IPs, and Tailscale hostnames.
+# Browsers do not allow "*" when credentials/cookies are enabled, so we use
+# an explicit allow list plus a broad local-network regex instead.
+LOCAL_NETWORK_ORIGIN_REGEX = (
+    r"https?://("
+    r"localhost|"
+    r"127\.0\.0\.1|"
+    r"0\.0\.0\.0|"
+    r"10(?:\.\d{1,3}){3}|"
+    r"192\.168(?:\.\d{1,3}){2}|"
+    r"172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}|"
+    r"(?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]*ts\.net"
+    r")(:\d+)?$"
+)
+
 # CORS for Vue frontend
 app.add_middleware(
     CORSMiddleware,
@@ -34,7 +49,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
     ],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=LOCAL_NETWORK_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
