@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from .auth_utils import require_auth
 from db import DATABASE_PATH
 import backup as backup_module
+from integrations import get_backup_provider, get_settings
 
 router = APIRouter()
 
@@ -23,10 +24,21 @@ def _serialize_backup(backup: dict) -> dict:
     }
 
 
+def _apply_backup_settings() -> dict:
+    settings = get_settings()["backup"]
+    provider = settings["provider"]
+    if provider == "local":
+        backup_module.USB_SSD_MOUNT = backup_module.Path("/__disabled__")
+    else:
+        backup_module.USB_SSD_MOUNT = backup_module.Path(settings.get("usb_path") or "/Volumes/xtra-ssd")
+    return settings
+
+
 @router.get("")
 def list_backups(request: Request):
     """List all backups (local + USB SSD)."""
     require_auth(request)
+    _apply_backup_settings()
     backups = backup_module.list_backups()
     return [_serialize_backup(b) for b in backups]
 
@@ -35,6 +47,10 @@ def list_backups(request: Request):
 def create_backup(request: Request):
     """Create a new backup (auto-syncs to USB SSD if available)."""
     require_auth(request)
+    provider = get_backup_provider()
+    _apply_backup_settings()
+    if provider == "google_drive":
+        raise HTTPException(status_code=503, detail="Google Drive backup is not implemented yet.")
     try:
         backup = backup_module.create_backup(str(DATABASE_PATH))
         return _serialize_backup(backup)
@@ -46,6 +62,7 @@ def create_backup(request: Request):
 def restore_backup(request: Request, backup_id: str):
     """Restore from a backup."""
     require_auth(request)
+    _apply_backup_settings()
     try:
         result = backup_module.restore_backup(backup_id)
         return {"status": "restored", **result}
@@ -59,6 +76,7 @@ def restore_backup(request: Request, backup_id: str):
 def delete_backup(request: Request, backup_id: str):
     """Delete a backup from local and USB SSD."""
     require_auth(request)
+    _apply_backup_settings()
     success = backup_module.delete_backup(backup_id)
     if not success:
         raise HTTPException(status_code=404, detail="Backup not found")
@@ -69,6 +87,7 @@ def delete_backup(request: Request, backup_id: str):
 def get_last_backup(request: Request):
     """Get info about the last backup."""
     require_auth(request)
+    _apply_backup_settings()
     last_backup = backup_module.get_last_backup_info()
     if not last_backup:
         return {"last_backup": None}
@@ -79,4 +98,8 @@ def get_last_backup(request: Request):
 def get_backup_status(request: Request):
     """Get backup system status (USB SSD availability, counts, etc.)."""
     require_auth(request)
-    return backup_module.get_backup_status()
+    settings = _apply_backup_settings()
+    status = backup_module.get_backup_status()
+    status["provider"] = settings["provider"]
+    status["google_drive"] = settings["google_drive"]
+    return status

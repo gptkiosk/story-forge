@@ -10,9 +10,9 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from ai_providers import ai_provider_manager
 from context_engine import get_context_state
 from db_helpers import get_book_by_id, get_chapters_for_book
-from libby import libby_client
 from .auth_utils import require_auth
 
 router = APIRouter()
@@ -195,7 +195,7 @@ def next_chapter_ideas(request: Request, book_id: int, _: NextChapterIdeasReques
     require_auth(request)
     story_context = _build_story_context(book_id)
     response = asyncio.run(
-        libby_client.suggest_next_chapter_ideas(
+        ai_provider_manager.suggest_next_chapter_ideas(
             story_context=story_context,
             chapter_count=story_context["chapter_count"],
             current_book_title=story_context["book"]["title"],
@@ -223,7 +223,7 @@ def generate_next_chapter(request: Request, book_id: int, body: NextChapterGener
     fallback_title = body.chapter_title.strip() if body.chapter_title else f"Chapter {next_order}"
 
     response = asyncio.run(
-        libby_client.submit_story_direction(
+        ai_provider_manager.submit_story_direction(
             story_direction=direction,
             story_context=story_context,
             chapter_title=fallback_title,

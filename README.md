@@ -9,7 +9,7 @@ The canonical stack is:
 - Local Mac runtime
 - SQLite for the active writing pipeline
 - Local PostgreSQL for context engine state
-- OpenClaw agent transport for Libby workflows
+- Configurable AI provider layer: OpenClaw or OpenRouter
 
 ## Current Capabilities
 
@@ -18,8 +18,9 @@ The canonical stack is:
 - Context-only manuscript ingestion with async progress
 - Optional Libby-assisted context refinement
 - Libby-assisted next chapter ideas and draft generation
+- Install-level Integrations settings for AI and backup providers
 - Multi-format manuscript export and export-package workflow
-- Local encrypted backups with optional USB SSD mirror
+- Local encrypted backups with configurable local-only or USB SSD target
 - TTS provider configuration and audio generation
 - Review-mode auth bypass for local development
 
@@ -31,8 +32,10 @@ flowchart LR
     API --> SQLITE["SQLite<br/>books, chapters, exports, backups, TTS"]
     API --> PG["PostgreSQL<br/>context jobs, source docs, summaries"]
     API --> KEYCHAIN["macOS Keychain<br/>TTS secrets"]
+    API --> INTEGRATIONS["Integration Settings<br/>AI + Backup providers"]
     API --> USB["USB SSD Mirror<br/>optional backups"]
     API --> OPENCLAW["OpenClaw Agent Channel<br/>Libby"]
+    API --> OPENROUTER["OpenRouter<br/>hosted fallback"]
     OPENCLAW --> LIBBY["Libby Agent<br/>story engine / publisher"]
 ```
 
@@ -57,7 +60,7 @@ flowchart TD
     C --> D["Fast heuristic context build"]
     D --> E{"Fast only or<br/>Fast + Libby?"}
     E -->|Fast| F["Save summary state"]
-    E -->|Libby refine| G["Send structured refinement task to Libby via OpenClaw"]
+    E -->|Refine| G["Send structured refinement task via active AI provider"]
     G --> F
     F --> H["Frontend polls job progress"]
     H --> I["Editable / exportable context summary"]
@@ -75,12 +78,12 @@ sequenceDiagram
 
     User->>Frontend: Open Chapters tab + Agent Help
     Frontend->>API: POST /api/books/{id}/next-chapter/ideas
-    API->>Libby: Request 3 structured ideas via OpenClaw
+    API->>Libby: Request 3 structured ideas via active AI provider
     Libby-->>API: JSON ideas
     API-->>Frontend: ideas[]
     User->>Frontend: Choose idea or write freeform direction
     Frontend->>API: POST /api/books/{id}/next-chapter/generate
-    API->>Libby: Request drafted chapter via OpenClaw
+    API->>Libby: Request drafted chapter via active AI provider
     Libby-->>API: chapter_title + chapter_content
     API-->>Frontend: draft payload
     User->>Frontend: Review/edit inline chapter draft
@@ -105,6 +108,8 @@ story-forge/
 ├── db_helpers.py           # SQLite access helpers
 ├── context_db.py           # PostgreSQL context engine models and session setup
 ├── context_engine.py       # Context ingestion, refinement, export, job progress
+├── ai_providers.py         # AI provider routing for OpenClaw / OpenRouter
+├── integrations.py         # Install-level integration settings and status
 ├── libby.py                # OpenClaw-backed Libby transport and parsing
 ├── manuscript.py           # Export and manuscript package generation
 ├── backup.py               # Local encrypted backups + USB sync
@@ -121,14 +126,22 @@ story-forge/
 - PostgreSQL is the source of truth for context ingestion jobs, context source documents, and context summaries.
 - Libby is not treated as a database. She is an agent transport target used for refinement and drafting tasks.
 
+## Provider Settings
+
+- `GET /api/integrations` returns current integration settings and live status.
+- `PUT /api/integrations/ai` configures the active AI provider.
+- `PUT /api/integrations/backup` configures the active backup target.
+- OpenRouter API keys are stored in macOS Keychain.
+- Google Drive backup is tracked as a planned provider, but not implemented yet.
+
 ## Libby Integration
 
 Story Forge no longer assumes Libby is running as a custom HTTP server on `localhost:8100`.
 
 Current behavior:
 
-- Libby calls are routed through the local `openclaw` CLI
-- Story Forge talks to Libby using the OpenClaw agent channel
+- Story Forge can route chapter ideation, draft generation, and context refinement through either OpenClaw or OpenRouter
+- OpenClaw calls are routed through the local `openclaw` CLI
 - JSON-only prompts are used for context refinement, next-chapter ideas, and draft generation
 - Chapter creation and chapter edits now build background voice-map JSON artifacts for Voice Studio, including a per-book character roster and a per-chapter narration/dialogue plan.
 - Response parsing is hardened for OpenClaw’s nested `result.payloads[].text` output shape
@@ -166,8 +179,9 @@ That launcher currently:
 - `REVIEW_MODE=true` enables local auth bypass.
 - `STORY_FORGE_USB_PATH=/Volumes/xtra-ssd` overrides the default USB backup mount.
 - `STORY_FORGE_CONTEXT_POSTGRES_URL` sets the context-engine PostgreSQL connection.
-- `LIBBY_TRANSPORT=openclaw` is the supported Libby transport.
-- `LIBBY_AGENT_ID=libby` selects the target OpenClaw agent.
+- `LIBBY_TRANSPORT=openclaw` remains the supported local Libby transport.
+- `LIBBY_AGENT_ID=libby` is the default OpenClaw target, but Integrations settings now control the active agent id.
+- `OPENROUTER_MODEL` can seed the default hosted model choice.
 - TTS provider keys are stored in macOS Keychain.
 
 ## Verification

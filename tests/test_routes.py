@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 import context_engine
 import db
 import db_helpers
+import integrations
 import libby
 import tts as tts_module
 from db import Base
@@ -235,6 +236,50 @@ class TestContextRoutes:
         export_payload = export_response.json()
         assert export_payload["book_id"] == 42
         assert export_payload["summary"]["summary_text"] == "Revised summary"
+
+
+class TestIntegrationRoutes:
+    def test_get_and_update_integrations(self, monkeypatch, tmp_path):
+        settings_path = tmp_path / "integrations.json"
+        monkeypatch.setattr(integrations, "INTEGRATIONS_PATH", settings_path)
+        monkeypatch.setattr(integrations, "_get_secret", lambda key: "secret" if "openrouter" in key else "")
+        monkeypatch.setattr(integrations, "_set_secret", lambda key, value: None)
+        monkeypatch.setattr(libby.libby_client, "_openclaw_available", lambda: True)
+
+        client = TestClient(app)
+
+        get_response = client.get("/api/integrations")
+        assert get_response.status_code == 200
+        payload = get_response.json()
+        assert payload["settings"]["ai"]["provider"] == "openclaw"
+
+        ai_update = client.put(
+            "/api/integrations/ai",
+            json={
+                "provider": "openrouter",
+                "openclaw": {"agent_id": "libby", "agent_name": "Libby", "transport": "openclaw"},
+                "openrouter": {
+                    "base_url": "https://openrouter.ai/api/v1",
+                    "model": "openai/gpt-4.1-mini",
+                    "site_url": "http://localhost:5173",
+                    "app_name": "Story Forge",
+                    "api_key": "new-key",
+                },
+            },
+        )
+        assert ai_update.status_code == 200
+        assert ai_update.json()["provider"] == "openrouter"
+
+        backup_update = client.put(
+            "/api/integrations/backup",
+            json={
+                "provider": "local",
+                "usb_path": "/Volumes/test-ssd",
+                "google_drive": {"enabled": False, "folder_name": "Story Forge Backups"},
+            },
+        )
+        assert backup_update.status_code == 200
+        assert backup_update.json()["provider"] == "local"
 
 
 class TestLibbyWorkflowRoutes:

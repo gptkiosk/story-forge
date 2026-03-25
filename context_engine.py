@@ -11,6 +11,7 @@ import threading
 from collections import Counter
 from datetime import datetime
 
+from ai_providers import ai_provider_manager
 from context_db import (
     ContextDocument,
     ContextIngestionJob,
@@ -18,7 +19,6 @@ from context_db import (
     context_db_enabled,
     get_context_session,
 )
-from libby import libby_client
 
 STOPWORDS = {
     "The", "A", "An", "And", "But", "Or", "If", "In", "On", "At", "By",
@@ -208,7 +208,7 @@ def _libby_excerpt(content_text: str) -> str:
 
 def _refine_summary_with_libby(book_id: int, title: str, content_text: str, base_summary: dict) -> tuple[dict, str | None]:
     response = asyncio.run(
-        libby_client.refine_context_summary(
+        ai_provider_manager.refine_context_summary(
             book_id=book_id,
             source_title=title,
             heuristic_summary=base_summary,

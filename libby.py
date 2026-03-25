@@ -17,6 +17,8 @@ import subprocess
 from datetime import datetime
 from typing import Optional
 
+from integrations import get_openclaw_settings
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -60,9 +62,15 @@ class LibbyClient:
         self.api_url = api_url or LIBBY_API_URL
         self.timeout = timeout
 
+    def _transport(self) -> str:
+        return get_openclaw_settings().get("transport", LIBBY_TRANSPORT)
+
+    def _agent_id(self) -> str:
+        return get_openclaw_settings().get("agent_id", LIBBY_AGENT_ID)
+
     async def is_available(self) -> bool:
         """Check if Libby is reachable."""
-        if LIBBY_TRANSPORT == "openclaw":
+        if self._transport() == "openclaw":
             return self._openclaw_available()
         return False
 
@@ -226,7 +234,7 @@ class LibbyClient:
 
     async def _send_request(self, endpoint: str, payload: dict) -> dict:
         """Send a request to Libby."""
-        if LIBBY_TRANSPORT == "openclaw":
+        if self._transport() == "openclaw":
             return self._send_via_openclaw(payload)
         return {
             "success": False,
@@ -238,7 +246,7 @@ class LibbyClient:
             return False
         try:
             result = subprocess.run(
-                ["openclaw", "sessions", "--agent", LIBBY_AGENT_ID, "--json"],
+                ["openclaw", "sessions", "--agent", self._agent_id(), "--json"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -262,7 +270,7 @@ class LibbyClient:
                     "openclaw",
                     "agent",
                     "--agent",
-                    LIBBY_AGENT_ID,
+                    self._agent_id(),
                     "--message",
                     prompt,
                     "--timeout",
