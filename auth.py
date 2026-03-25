@@ -7,6 +7,7 @@ import asyncio
 import os
 import json
 import keyring
+import httpx
 from datetime import datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
@@ -127,13 +128,10 @@ class GoogleOAuth:
 
     async def get_user_info(self, access_token: str) -> dict:
         """Fetch user information from Google's userinfo endpoint."""
-        async with AsyncOAuth2Client(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-        ) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(
                 self.userinfo_url,
-                token=access_token,
+                headers={"Authorization": f"Bearer {access_token}"},
             )
             response.raise_for_status()
             return response.json()
