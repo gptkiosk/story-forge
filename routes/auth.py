@@ -1,7 +1,7 @@
 """
 Auth routes for Story Forge API
 """
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 import auth
 import preferences
@@ -9,18 +9,14 @@ from db import get_session
 
 from .auth_schemas import UserResponse, AuthStatus, ThemeResponse, UserPreferenceResponse
 
-import os
-
-# Check if we're in review mode (no auth required)
-_REVIEW_MODE = os.environ.get("REVIEW_MODE", "true").lower()
-REVIEW_MODE = _REVIEW_MODE in ("true", "1", "yes")
-
 router = APIRouter()
 
 
 @router.get("/login")
-def login(connect_drive: bool = False):
+def login(request: Request, connect_drive: bool = False, return_to: str | None = Query(default=None)):
     """Redirect to Google OAuth login."""
+    fallback_origin = request.headers.get('origin') or request.headers.get('referer')
+    auth.set_post_auth_redirect(return_to or fallback_origin)
     login_url = auth.get_login_url(include_drive=connect_drive)
     return RedirectResponse(url=login_url)
 
@@ -29,7 +25,10 @@ def login(connect_drive: bool = False):
 def callback(code: str = None, state: str = None, error: str = None):
     """Handle OAuth callback from Google."""
     if error:
-        return RedirectResponse(url="/login?error=" + error)
+        destination = auth.get_post_auth_redirect('/') or '/'
+        if destination.endswith('/'):
+            destination = destination[:-1]
+        return RedirectResponse(url=f"{destination}/login?error={error}")
 
     if not code:
         raise HTTPException(status_code=400, detail="Missing authorization code")
@@ -37,11 +36,14 @@ def callback(code: str = None, state: str = None, error: str = None):
     try:
         user = auth.process_callback(code, state)
         if user:
-            return RedirectResponse(url="/", status_code=302)
+            return RedirectResponse(url=auth.get_post_auth_redirect("/") or "/", status_code=302)
     except Exception as e:
         print(f"Auth callback error: {e}")
 
-    return RedirectResponse(url="/login?error=auth_failed")
+    destination = auth.get_post_auth_redirect('/') or '/'
+    if destination.endswith('/'):
+        destination = destination[:-1]
+    return RedirectResponse(url=f"{destination}/login?error=auth_failed")
 
 
 @router.post("/logout")
@@ -55,7 +57,7 @@ def logout(request: Request):
 def get_current_user(request: Request):
     """Get current authenticated user."""
     # For review mode, return demo user
-    if REVIEW_MODE:
+    if auth.is_review_mode():
         return UserResponse(
             id="demo-user",
             email="writer@storyforge.local",
@@ -82,7 +84,7 @@ def get_current_user(request: Request):
 @router.get("/status", response_model=AuthStatus)
 def auth_status(request: Request):
     """Check if user is authenticated."""
-    if REVIEW_MODE:
+    if auth.is_review_mode():
         return AuthStatus(
             authenticated=True,
             auth_enabled=False,
@@ -103,7 +105,7 @@ def auth_status(request: Request):
 @router.get("/theme", response_model=ThemeResponse)
 def get_theme(request: Request):
     """Get current theme preference."""
-    if REVIEW_MODE:
+    if auth.is_review_mode():
         return ThemeResponse(theme="light")
     user_id = auth.get_session("user_id", None)
     if not user_id:
@@ -117,7 +119,7 @@ def set_theme(request: Request, body: dict):
     theme = body.get("theme", "light")
     if theme not in ("light", "dark"):
         theme = "light"
-    if not REVIEW_MODE:
+    if not auth.is_review_mode():
         user_id = auth.get_session("user_id", None)
         if not user_id:
             raise HTTPException(status_code=401, detail="Not authenticated")
@@ -128,7 +130,7 @@ def set_theme(request: Request, body: dict):
 
 @router.get("/preferences", response_model=UserPreferenceResponse)
 def get_preferences(request: Request):
-    if REVIEW_MODE:
+    if auth.is_review_mode():
         return UserPreferenceResponse(
             theme="light",
             dashboard_layout="default",
@@ -151,7 +153,7 @@ def get_preferences(request: Request):
 
 @router.put("/preferences", response_model=UserPreferenceResponse)
 def update_preferences(request: Request, body: dict):
-    if REVIEW_MODE:
+    if auth.is_review_mode():
         return get_preferences(request)
     user_id = auth.get_session("user_id", None)
     if not user_id:

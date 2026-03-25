@@ -19,7 +19,7 @@ The canonical stack is:
 - Optional Libby-assisted context refinement
 - Libby-assisted next chapter ideas and draft generation
 - Install-level Integrations settings for AI and backup providers
-- Persistent per-user profile settings for theme and editor preferences
+- Persistent per-user profile settings for theme, editor defaults, and voice preferences
 - Multi-format manuscript export and export-package workflow
 - Local encrypted backups with configurable local-only or USB SSD target
 - Google Drive backup upload / list / restore / delete when Drive access is granted
@@ -207,3 +207,10 @@ pytest tests -q
 - NiceGUI is legacy and no longer the supported UI path.
 - GCS / Cloud Run assumptions are not part of the active local-first workflow.
 - Terraform files may remain as historical scaffolding, but they do not describe the supported runtime.
+
+
+## Auth Notes
+
+- Real Google sign-in requires `AUTH_ENABLED=1`, `DEV_MODE=0`, valid Google OAuth credentials, and a matching `GOOGLE_REDIRECT_URI`.
+- Story Forge stores the originating frontend URL during `/api/auth/login` so Google OAuth returns the browser to the right frontend screen after callback.
+- Google Drive backup uses the same Google account with the `drive.file` scope and uploads encrypted `.sfbackup` packages into the configured folder.

@@ -8,7 +8,7 @@ import os
 import json
 import keyring
 from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from typing import Optional
 
@@ -56,6 +56,10 @@ INTERNAL_USER_ID = "story-forge-user-001"
 
 # Session duration
 SESSION_DURATION_DAYS = 30
+
+# Optional explicit review mode override. When unset, Story Forge runs in
+# review mode only if auth is not enforced or dev mode is enabled.
+REVIEW_MODE_OVERRIDE = os.environ.get("REVIEW_MODE")
 
 BASE_SCOPES = [
     "openid",
@@ -256,6 +260,41 @@ def get_session(key: str, default: any = None, *_args) -> any:
 def clear_session(*_args) -> None:
     """Clear all session data."""
     _session_data.clear()
+
+
+def _normalize_browser_origin(raw_url: str | None) -> str | None:
+    """Normalize frontend/browser URL for post-auth redirects."""
+    if not raw_url:
+        return None
+    candidate = raw_url.strip()
+    if not candidate:
+        return None
+    parsed = urlparse(candidate if '://' in candidate else f'https://{candidate}')
+    if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+        return None
+    path = parsed.path or '/'
+    query = f'?{parsed.query}' if parsed.query else ''
+    return f"{parsed.scheme}://{parsed.netloc}{path}{query}"
+
+
+def is_review_mode() -> bool:
+    """Return whether auth bypass/review mode should be active."""
+    if REVIEW_MODE_OVERRIDE is not None:
+        return REVIEW_MODE_OVERRIDE.lower() in ('true', '1', 'yes')
+    return (not AUTH_ENABLED) or DEV_MODE
+
+
+def set_post_auth_redirect(url: str | None) -> None:
+    normalized = _normalize_browser_origin(url)
+    if normalized:
+        set_session('post_auth_redirect', normalized)
+
+
+def get_post_auth_redirect(default: str | None = None) -> str | None:
+    normalized = _normalize_browser_origin(get_session('post_auth_redirect'))
+    if normalized:
+        return normalized
+    return _normalize_browser_origin(default)
 
 
 def is_authenticated() -> bool:

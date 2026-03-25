@@ -1,12 +1,6 @@
 """
-Auth bypass utilities for Story Forge API
-For review/development mode - allows access without OAuth
+Auth bypass utilities for Story Forge API.
 """
-import os
-
-# Check if we're in review mode (no auth required)
-_REVIEW_MODE = os.environ.get("REVIEW_MODE", "true").lower()
-REVIEW_MODE = _REVIEW_MODE in ("true", "1", "yes")
 
 # Default user ID for review mode
 DEFAULT_USER_ID = "1"
@@ -15,9 +9,9 @@ DEFAULT_USER_ID = "1"
 def get_user_id(request) -> str:
     """Get user ID from session, or return default for review mode."""
     import auth
-    
+
     user_id = auth.get_session("user_id", request)
-    if not user_id and REVIEW_MODE:
+    if not user_id and auth.is_review_mode():
         user_id = DEFAULT_USER_ID
     return user_id
 

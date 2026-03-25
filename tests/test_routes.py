@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import auth as auth_module
 import context_engine
 import db
 import db_helpers
@@ -108,6 +109,32 @@ class TestBookAndChapterRoutes:
         listed_chapters = chapter_list_response.json()
         assert len(listed_chapters) == 1
         assert listed_chapters[0]["id"] == created_chapter["id"]
+
+
+class TestAuthRoutes:
+    def test_login_stores_return_to_and_callback_redirects_back(self, monkeypatch):
+        auth_module.clear_session()
+        monkeypatch.setattr(auth_module, 'get_login_url', lambda include_drive=False: 'https://accounts.google.com/mock')
+        monkeypatch.setattr(auth_module, 'process_callback', lambda code, state: {'id': 'user-1'})
+
+        client = TestClient(app)
+
+        login_response = client.get(
+            '/api/auth/login',
+            params={'return_to': 'http://localhost:5173/integrations', 'connect_drive': 'true'},
+            follow_redirects=False,
+        )
+        assert login_response.status_code in (302, 307)
+        assert login_response.headers['location'] == 'https://accounts.google.com/mock'
+
+        callback_response = client.get(
+            '/api/auth/callback',
+            params={'code': 'google-code', 'state': 'state-token'},
+            follow_redirects=False,
+        )
+        assert callback_response.status_code in (302, 307)
+        assert callback_response.headers['location'] == 'http://localhost:5173/integrations'
+
 
 
 class TestContextRoutes:
