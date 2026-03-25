@@ -25,6 +25,36 @@ async def _authorized_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
 
 
+def _raise_for_drive_error(response: httpx.Response) -> None:
+    if response.is_success:
+        return
+
+    detail = None
+    try:
+        payload = response.json()
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if isinstance(error, dict):
+            detail = error.get("message")
+            errors = error.get("errors")
+            if not detail and isinstance(errors, list) and errors:
+                first_error = errors[0]
+                if isinstance(first_error, dict):
+                    detail = first_error.get("message") or first_error.get("reason")
+    except Exception:
+        detail = None
+
+    message = detail or response.text or f"Google Drive request failed with {response.status_code}."
+
+    lowered = message.lower()
+    if response.status_code == 403 and ("access not configured" in lowered or "google drive api" in lowered):
+        raise RuntimeError(
+            "Google Drive API is not enabled for this Google Cloud project yet. "
+            "Enable the Google Drive API under APIs & Services and retry."
+        )
+
+    raise RuntimeError(f"Google Drive error ({response.status_code}): {message}")
+
+
 async def ensure_backup_folder(folder_name: str) -> str:
     headers = await _authorized_headers()
     safe_folder_name = folder_name.replace("'", "\\'")
@@ -38,7 +68,7 @@ async def ensure_backup_folder(folder_name: str) -> str:
             headers=headers,
             params={"q": query, "fields": "files(id,name)", "spaces": "drive"},
         )
-        existing.raise_for_status()
+        _raise_for_drive_error(existing)
         files = existing.json().get("files", [])
         if files:
             return files[0]["id"]
@@ -48,7 +78,7 @@ async def ensure_backup_folder(folder_name: str) -> str:
             headers={**headers, "Content-Type": "application/json"},
             json={"name": folder_name, "mimeType": FOLDER_MIME_TYPE},
         )
-        created.raise_for_status()
+        _raise_for_drive_error(created)
         return created.json()["id"]
 
 
@@ -81,7 +111,7 @@ async def upload_backup_file(local_path: str | Path, filename: str, folder_name:
             },
             content=body,
         )
-        response.raise_for_status()
+        _raise_for_drive_error(response)
         payload = response.json()
         return {
             "id": payload["id"],
@@ -108,7 +138,7 @@ async def list_backups(folder_name: str) -> list[dict]:
                 "spaces": "drive",
             },
         )
-        response.raise_for_status()
+        _raise_for_drive_error(response)
         files = response.json().get("files", [])
         return [
             {
@@ -134,7 +164,7 @@ async def download_backup_file(file_id: str, target_path: str | Path) -> Path:
             headers=headers,
             params={"alt": "media"},
         )
-        response.raise_for_status()
+        _raise_for_drive_error(response)
         target.write_bytes(response.content)
         return target
 
@@ -143,4 +173,4 @@ async def delete_backup_file(file_id: str) -> None:
     headers = await _authorized_headers()
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.delete(f"{DRIVE_API_BASE}/files/{file_id}", headers=headers)
-        response.raise_for_status()
+        _raise_for_drive_error(response)
