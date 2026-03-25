@@ -45,7 +45,7 @@ DEV_USER_ID = os.environ.get("DEV_USER_ID", "dev-user-001")
 # OAuth settings
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
+DEFAULT_GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5173/api/auth/callback")
 
 # Keychain service name for storing OAuth tokens
 KEYCHAIN_SERVICE = "story-forge"
@@ -76,10 +76,10 @@ GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 class GoogleOAuth:
     """Google OAuth 2.0 client using authlib."""
 
-    def __init__(self, redirect_uri: str = GOOGLE_REDIRECT_URI, extra_scopes: Optional[list[str]] = None):
+    def __init__(self, redirect_uri: Optional[str] = None, extra_scopes: Optional[list[str]] = None):
         self.client_id = GOOGLE_CLIENT_ID
         self.client_secret = GOOGLE_CLIENT_SECRET
-        self.redirect_uri = redirect_uri
+        self.redirect_uri = redirect_uri or get_oauth_redirect_uri() or DEFAULT_GOOGLE_REDIRECT_URI
 
         # Google OAuth endpoints
         self.authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -284,6 +284,33 @@ def is_review_mode() -> bool:
     return (not AUTH_ENABLED) or DEV_MODE
 
 
+def _normalize_browser_base(raw_url: str | None) -> str | None:
+    if not raw_url:
+        return None
+    candidate = raw_url.strip()
+    if not candidate:
+        return None
+    parsed = urlparse(candidate if '://' in candidate else f'https://{candidate}')
+    if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def set_oauth_redirect_uri(browser_url: str | None) -> None:
+    browser_base = _normalize_browser_base(browser_url)
+    if browser_base:
+        set_session('oauth_redirect_uri', f"{browser_base}/api/auth/callback")
+
+
+def get_oauth_redirect_uri(default: str | None = None) -> str | None:
+    configured = get_session('oauth_redirect_uri')
+    normalized = _normalize_browser_origin(configured)
+    if normalized:
+        return normalized
+    fallback = default or DEFAULT_GOOGLE_REDIRECT_URI
+    return _normalize_browser_origin(fallback)
+
+
 def set_post_auth_redirect(url: str | None) -> None:
     normalized = _normalize_browser_origin(url)
     if normalized:
@@ -391,7 +418,7 @@ def dev_mode_toggle(enabled: bool) -> None:
 
 async def handle_oauth_callback(db: Session, code: str) -> dict:
     """Handle the OAuth callback and complete authentication."""
-    oauth = GoogleOAuth()
+    oauth = GoogleOAuth(redirect_uri=get_oauth_redirect_uri())
     
     # Exchange code for tokens
     tokens = await oauth.exchange_code_for_tokens(code)
@@ -430,7 +457,7 @@ async def refresh_session_if_needed() -> bool:
         return False
     
     if is_token_expired(tokens):
-        oauth = GoogleOAuth()
+        oauth = GoogleOAuth(redirect_uri=get_oauth_redirect_uri())
         try:
             new_tokens = await oauth.refresh_access_token(tokens["refresh_token"])
             
@@ -458,7 +485,7 @@ def logout() -> None:
     clear_session()
 
 
-def get_login_url(include_drive: bool = False) -> str:
+def get_login_url(include_drive: bool = False, redirect_uri: Optional[str] = None) -> str:
     """Get the Google OAuth login URL."""
     import secrets
     state = secrets.token_urlsafe(32)
@@ -466,7 +493,7 @@ def get_login_url(include_drive: bool = False) -> str:
     requested_scopes = [GOOGLE_DRIVE_SCOPE] if include_drive else []
     set_session("oauth_requested_scopes", requested_scopes)
 
-    oauth = GoogleOAuth(extra_scopes=requested_scopes)
+    oauth = GoogleOAuth(redirect_uri=redirect_uri or get_oauth_redirect_uri(), extra_scopes=requested_scopes)
     return oauth.get_authorization_url(state)
 
 

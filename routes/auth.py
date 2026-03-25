@@ -16,8 +16,10 @@ router = APIRouter()
 def login(request: Request, connect_drive: bool = False, return_to: str | None = Query(default=None)):
     """Redirect to Google OAuth login."""
     fallback_origin = request.headers.get('origin') or request.headers.get('referer')
-    auth.set_post_auth_redirect(return_to or fallback_origin)
-    login_url = auth.get_login_url(include_drive=connect_drive)
+    redirect_source = return_to or fallback_origin
+    auth.set_post_auth_redirect(redirect_source)
+    auth.set_oauth_redirect_uri(redirect_source)
+    login_url = auth.get_login_url(include_drive=connect_drive, redirect_uri=auth.get_oauth_redirect_uri())
     return RedirectResponse(url=login_url)
 
 

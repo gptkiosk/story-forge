@@ -114,7 +114,7 @@ class TestBookAndChapterRoutes:
 class TestAuthRoutes:
     def test_login_stores_return_to_and_callback_redirects_back(self, monkeypatch):
         auth_module.clear_session()
-        monkeypatch.setattr(auth_module, 'get_login_url', lambda include_drive=False: 'https://accounts.google.com/mock')
+        monkeypatch.setattr(auth_module, 'get_login_url', lambda include_drive=False, redirect_uri=None: 'https://accounts.google.com/mock')
         monkeypatch.setattr(auth_module, 'process_callback', lambda code, state: {'id': 'user-1'})
 
         client = TestClient(app)
@@ -134,6 +134,25 @@ class TestAuthRoutes:
         )
         assert callback_response.status_code in (302, 307)
         assert callback_response.headers['location'] == 'http://localhost:5173/integrations'
+
+    def test_login_uses_request_host_for_oauth_redirect_uri(self, monkeypatch):
+        auth_module.clear_session()
+        captured = {}
+
+        def fake_get_login_url(include_drive=False, redirect_uri=None):
+            captured['redirect_uri'] = redirect_uri
+            return 'https://accounts.google.com/mock'
+
+        monkeypatch.setattr(auth_module, 'get_login_url', fake_get_login_url)
+
+        client = TestClient(app)
+        response = client.get(
+            '/api/auth/login',
+            params={'return_to': 'http://127.0.0.1:5173/login'},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 307)
+        assert captured['redirect_uri'] == 'http://127.0.0.1:5173/api/auth/callback'
 
 
 
