@@ -126,7 +126,15 @@ def get_last_backup(request: Request):
     """Get info about the last backup."""
     require_auth(request)
     _apply_backup_settings()
-    last_backup = backup_module.get_last_backup_info()
+    settings = get_settings()["backup"]
+    provider = settings["provider"]
+    if provider == "google_drive":
+        if not auth.has_google_drive_access():
+            raise HTTPException(status_code=403, detail="Google Drive access has not been granted yet.")
+        backups = asyncio.run(google_drive_backup.list_backups(settings["google_drive"]["folder_name"]))
+        last_backup = backups[0] if backups else None
+    else:
+        last_backup = backup_module.get_last_backup_info()
     if not last_backup:
         return {"last_backup": None}
     return {"last_backup": _serialize_backup(last_backup)}
