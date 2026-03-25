@@ -5,6 +5,8 @@ Provides UI styling and theme management.
 
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
+
 from db import UserPreference, get_session
 
 
@@ -158,6 +160,28 @@ def get_random_quote() -> str:
 # =============================================================================
 
 
+
+
+def _get_or_create_preferences_record(db, user_id: int) -> UserPreference:
+    prefs = db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+    if prefs:
+        return prefs
+
+    prefs = UserPreference(user_id=user_id, theme=Theme.LIGHT)
+    db.add(prefs)
+    try:
+        db.commit()
+        db.refresh(prefs)
+        return prefs
+    except IntegrityError:
+        # Another concurrent request created the row first.
+        db.rollback()
+        existing = db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+        if existing:
+            return existing
+        raise
+
+
 def get_user_preferences(user_id: int) -> UserPreference:
     """
     Get or create user preferences.
@@ -170,20 +194,7 @@ def get_user_preferences(user_id: int) -> UserPreference:
     """
     db = get_session()
     try:
-        prefs = db.query(UserPreference).filter(
-            UserPreference.user_id == user_id
-        ).first()
-
-        if not prefs:
-            prefs = UserPreference(
-                user_id=user_id,
-                theme=Theme.LIGHT,
-            )
-            db.add(prefs)
-            db.commit()
-            db.refresh(prefs)
-
-        return prefs
+        return _get_or_create_preferences_record(db, user_id)
     finally:
         db.close()
 
@@ -218,14 +229,7 @@ def set_theme_for_user(user_id: int, theme: str) -> UserPreference:
 
     db = get_session()
     try:
-        prefs = db.query(UserPreference).filter(
-            UserPreference.user_id == user_id
-        ).first()
-
-        if not prefs:
-            prefs = UserPreference(user_id=user_id)
-            db.add(prefs)
-
+        prefs = _get_or_create_preferences_record(db, user_id)
         prefs.theme = theme
         db.commit()
         db.refresh(prefs)
@@ -309,13 +313,7 @@ def update_user_preference(
 
     db = get_session()
     try:
-        prefs = db.query(UserPreference).filter(
-            UserPreference.user_id == user_id
-        ).first()
-
-        if not prefs:
-            prefs = UserPreference(user_id=user_id)
-            db.add(prefs)
+        prefs = _get_or_create_preferences_record(db, user_id)
 
         if theme is not None:
             prefs.theme = theme

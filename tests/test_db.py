@@ -250,3 +250,15 @@ class TestDatabaseInit:
         assert "books" in tables
         assert "chapters" in tables
         assert "tts_jobs" in tables
+
+
+def test_get_user_preferences_returns_existing_row(test_engine):
+    from db import UserPreference
+
+    prefs = UserPreference(user_id=1, theme='dark')
+    test_engine.add(prefs)
+    test_engine.commit()
+
+    stored = test_engine.query(UserPreference).filter(UserPreference.user_id == 1).first()
+    assert stored is not None
+    assert stored.theme == 'dark'
