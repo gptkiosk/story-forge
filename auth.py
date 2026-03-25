@@ -9,7 +9,7 @@ import json
 import keyring
 import httpx
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, parse_qsl, urlunparse
 
 from typing import Optional
 
@@ -318,6 +318,19 @@ def get_post_auth_redirect(default: str | None = None) -> str | None:
     if normalized:
         return normalized
     return _normalize_browser_origin(default)
+
+
+def build_post_auth_redirect(success: bool = True, default: str | None = None) -> str:
+    destination = get_post_auth_redirect(default or '/') or '/'
+    requested_scopes = get_session('oauth_requested_scopes', []) or []
+
+    if success and GOOGLE_DRIVE_SCOPE in requested_scopes:
+        parsed = urlparse(destination)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query['drive_connected'] = '1'
+        destination = urlunparse(parsed._replace(query=urlencode(query)))
+
+    return destination
 
 
 def is_authenticated() -> bool:

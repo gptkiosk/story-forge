@@ -38,11 +38,11 @@ def callback(code: str = None, state: str = None, error: str = None):
     try:
         user = auth.process_callback(code, state)
         if user:
-            return RedirectResponse(url=auth.get_post_auth_redirect("/") or "/", status_code=302)
+            return RedirectResponse(url=auth.build_post_auth_redirect(success=True, default="/"), status_code=302)
     except Exception as e:
         print(f"Auth callback error: {e}")
 
-    destination = auth.get_post_auth_redirect('/') or '/'
+    destination = auth.build_post_auth_redirect(success=False, default='/')
     if destination.endswith('/'):
         destination = destination[:-1]
     return RedirectResponse(url=f"{destination}/login?error=auth_failed")
