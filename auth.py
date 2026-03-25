@@ -13,7 +13,6 @@ from urllib.parse import urlencode, urlparse
 
 from typing import Optional
 
-from authlib.integrations.httpx_client import AsyncOAuth2Client
 from sqlalchemy.orm import Session
 
 # Forward declaration for type hints
@@ -110,18 +109,17 @@ class GoogleOAuth:
 
     async def exchange_code_for_tokens(self, code: str) -> dict:
         """Exchange authorization code for access and refresh tokens."""
-        async with AsyncOAuth2Client(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-        ) as client:
-            # Exchange code for tokens
+        async with httpx.AsyncClient(timeout=60.0) as client:
             token_response = await client.post(
                 self.token_url,
                 data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
                     "grant_type": "authorization_code",
                     "code": code,
                     "redirect_uri": self.redirect_uri,
                 },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
             token_response.raise_for_status()
             return token_response.json()
@@ -138,16 +136,16 @@ class GoogleOAuth:
 
     async def refresh_access_token(self, refresh_token: str) -> dict:
         """Refresh the access token using the refresh token."""
-        async with AsyncOAuth2Client(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-        ) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 self.token_url,
                 data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
                 },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
             response.raise_for_status()
             return response.json()
