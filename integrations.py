@@ -96,7 +96,7 @@ def get_settings() -> dict:
     settings = _load_raw_settings()
     sanitized = copy.deepcopy(settings)
     sanitized["ai"]["openrouter"]["api_key_configured"] = bool(_get_secret(OPENROUTER_KEYCHAIN_KEY))
-    sanitized["backup"]["google_drive"]["coming_soon"] = True
+    sanitized["backup"]["google_drive"]["coming_soon"] = False
     return sanitized
 
 
@@ -158,6 +158,7 @@ def get_integration_status() -> dict:
     backup_settings = settings["backup"]
 
     import backup as backup_module
+    import auth
     from libby import libby_client
 
     openclaw_available = False
@@ -188,8 +189,8 @@ def get_integration_status() -> dict:
             },
             "google_drive": {
                 **backup_settings["google_drive"],
-                "configured": False,
-                "coming_soon": True,
+                "configured": auth.has_google_drive_access(),
+                "coming_soon": False,
             },
         },
     }

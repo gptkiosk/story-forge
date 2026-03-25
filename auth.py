@@ -3,10 +3,12 @@ Authentication module for Story Forge.
 Provides Google OAuth 2.0 authentication using authlib.
 """
 
+import asyncio
 import os
 import json
 import keyring
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from typing import Optional
 
@@ -43,6 +45,7 @@ DEV_USER_ID = os.environ.get("DEV_USER_ID", "dev-user-001")
 # OAuth settings
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
 
 # Keychain service name for storing OAuth tokens
 KEYCHAIN_SERVICE = "story-forge"
@@ -54,6 +57,13 @@ INTERNAL_USER_ID = "story-forge-user-001"
 # Session duration
 SESSION_DURATION_DAYS = 30
 
+BASE_SCOPES = [
+    "openid",
+    "email",
+    "profile",
+]
+GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+
 
 # =============================================================================
 # OAuth Client
@@ -62,7 +72,7 @@ SESSION_DURATION_DAYS = 30
 class GoogleOAuth:
     """Google OAuth 2.0 client using authlib."""
 
-    def __init__(self, redirect_uri: str = "http://localhost:8080/auth/callback"):
+    def __init__(self, redirect_uri: str = GOOGLE_REDIRECT_URI, extra_scopes: Optional[list[str]] = None):
         self.client_id = GOOGLE_CLIENT_ID
         self.client_secret = GOOGLE_CLIENT_SECRET
         self.redirect_uri = redirect_uri
@@ -73,7 +83,11 @@ class GoogleOAuth:
         self.userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
 
         # Scopes requested
-        self.scope = "openid email profile"
+        requested_scopes = list(BASE_SCOPES)
+        for scope in extra_scopes or []:
+            if scope not in requested_scopes:
+                requested_scopes.append(scope)
+        self.scope = requested_scopes
 
     def get_authorization_url(self, state: str) -> str:
         """Generate the Google OAuth authorization URL."""
@@ -81,14 +95,13 @@ class GoogleOAuth:
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
-            "scope": self.scope,
+            "scope": " ".join(self.scope),
             "state": state,
             "access_type": "offline",  # Get refresh token
             "prompt": "consent",  # Force consent to get refresh token
+            "include_granted_scopes": "true",
         }
-        # Build URL manually to avoid encoding issues
-        param_str = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{self.authorize_url}?{param_str}"
+        return f"{self.authorize_url}?{urlencode(params)}"
 
     async def exchange_code_for_tokens(self, code: str) -> dict:
         """Exchange authorization code for access and refresh tokens."""
@@ -152,7 +165,10 @@ def get_tokens() -> Optional[dict]:
     """Retrieve OAuth tokens from the keychain."""
     token_json = keyring.get_password(KEYCHAIN_SERVICE, KEYCHAIN_TOKEN_KEY)
     if token_json:
-        return json.loads(token_json)
+        try:
+            return json.loads(token_json)
+        except Exception:
+            return None
     return None
 
 
@@ -227,17 +243,17 @@ def get_current_user(db: Session):
 _session_data = {}
 
 
-def set_session(key: str, value: any) -> None:
+def set_session(key: str, value: any, *_args) -> None:
     """Set a session value."""
     _session_data[key] = value
 
 
-def get_session(key: str, default: any = None) -> any:
+def get_session(key: str, default: any = None, *_args) -> any:
     """Get a session value."""
     return _session_data.get(key, default)
 
 
-def clear_session() -> None:
+def clear_session(*_args) -> None:
     """Clear all session data."""
     _session_data.clear()
 
@@ -360,6 +376,7 @@ async def handle_oauth_callback(db: Session, code: str) -> dict:
     set_session("user_email", user.email)
     set_session("user_name", user.name)
     set_session("user_avatar", user.avatar_url)
+    set_session("user_provider", user.provider)
     
     return {
         "user": user,
@@ -402,13 +419,15 @@ def logout() -> None:
     clear_session()
 
 
-def get_login_url() -> str:
+def get_login_url(include_drive: bool = False) -> str:
     """Get the Google OAuth login URL."""
     import secrets
     state = secrets.token_urlsafe(32)
     set_session("oauth_state", state)
-    
-    oauth = GoogleOAuth()
+    requested_scopes = [GOOGLE_DRIVE_SCOPE] if include_drive else []
+    set_session("oauth_requested_scopes", requested_scopes)
+
+    oauth = GoogleOAuth(extra_scopes=requested_scopes)
     return oauth.get_authorization_url(state)
 
 
@@ -416,3 +435,47 @@ def validate_state(state: str) -> bool:
     """Validate the OAuth state parameter."""
     saved_state = get_session("oauth_state")
     return saved_state == state
+
+
+def process_callback(code: str, state: Optional[str] = None):
+    """Complete OAuth callback synchronously for FastAPI routes."""
+    if state and not validate_state(state):
+        raise ValueError("Invalid OAuth state")
+
+    from db import get_session as get_db_session
+    db = get_db_session()
+    try:
+        result = asyncio.run(handle_oauth_callback(db, code))
+        return result.get("user")
+    finally:
+        db.close()
+
+
+def get_granted_scopes() -> list[str]:
+    tokens = get_tokens() or {}
+    raw_scope = tokens.get("scope", "")
+    if isinstance(raw_scope, str):
+        return [scope for scope in raw_scope.split() if scope]
+    if isinstance(raw_scope, list):
+        return [scope for scope in raw_scope if isinstance(scope, str)]
+    return []
+
+
+def has_google_drive_access() -> bool:
+    return GOOGLE_DRIVE_SCOPE in get_granted_scopes()
+
+
+async def get_valid_access_token() -> str:
+    tokens = get_tokens()
+    if not tokens:
+        raise RuntimeError("Google OAuth tokens are not configured.")
+
+    refreshed = await refresh_session_if_needed()
+    if not refreshed:
+        raise RuntimeError("Unable to refresh Google OAuth session.")
+
+    tokens = get_tokens()
+    access_token = (tokens or {}).get("access_token")
+    if not access_token:
+        raise RuntimeError("Google OAuth access token is missing.")
+    return access_token

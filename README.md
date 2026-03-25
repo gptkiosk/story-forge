@@ -19,8 +19,10 @@ The canonical stack is:
 - Optional Libby-assisted context refinement
 - Libby-assisted next chapter ideas and draft generation
 - Install-level Integrations settings for AI and backup providers
+- Persistent per-user profile settings for theme and editor preferences
 - Multi-format manuscript export and export-package workflow
 - Local encrypted backups with configurable local-only or USB SSD target
+- Google Drive backup upload / list / restore / delete when Drive access is granted
 - TTS provider configuration and audio generation
 - Review-mode auth bypass for local development
 
@@ -131,8 +133,10 @@ story-forge/
 - `GET /api/integrations` returns current integration settings and live status.
 - `PUT /api/integrations/ai` configures the active AI provider.
 - `PUT /api/integrations/backup` configures the active backup target.
+- `GET /api/auth/preferences` returns saved per-user profile settings.
+- `PUT /api/auth/preferences` updates profile settings such as theme, editor font size, and default TTS provider.
 - OpenRouter API keys are stored in macOS Keychain.
-- Google Drive backup is tracked as a planned provider, but not implemented yet.
+- Google Drive backup uses the signed-in Google account plus Drive file access.
 
 ## Libby Integration
 
@@ -182,6 +186,7 @@ That launcher currently:
 - `LIBBY_TRANSPORT=openclaw` remains the supported local Libby transport.
 - `LIBBY_AGENT_ID=libby` is the default OpenClaw target, but Integrations settings now control the active agent id.
 - `OPENROUTER_MODEL` can seed the default hosted model choice.
+- `GOOGLE_REDIRECT_URI` should match your configured OAuth callback URL, typically `/api/auth/callback` on the active app origin.
 - TTS provider keys are stored in macOS Keychain.
 
 ## Verification
