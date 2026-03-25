@@ -39,6 +39,11 @@ LOW_SIGNAL_NAMES = {
     "Suddenly", "Finally", "Meanwhile", "Still", "Everything", "Nothing", "Something",
     "Someone", "Everybody", "Nobody", "Implant", "Era", "Origins", "Back",
 }
+POV_VERBS = (
+    "thought", "wondered", "felt", "knew", "remembered", "noticed", "watched",
+    "saw", "heard", "feared", "hoped", "realized", "considered", "decided",
+)
+POV_VERB_PATTERN = "|".join(POV_VERBS)
 
 QUOTE_PATTERN = re.compile(r'["“](.+?)["”]', re.DOTALL)
 NAME_PATTERN = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
@@ -295,6 +300,60 @@ def _find_speaker(before_window: str, after_window: str, known_names: list[str])
     return "Narrator"
 
 
+def _score_narration_focus(content: str, name: str) -> int:
+    escaped = re.escape(name)
+    score = 0
+    score += len(re.findall(rf"\b{escaped}\b", content, flags=re.IGNORECASE)) * 2
+    score += len(
+        re.findall(
+            rf"\b{escaped}\b[^\n.?!]{{0,60}}\b(?:{POV_VERB_PATTERN})\b",
+            content,
+            flags=re.IGNORECASE,
+        )
+    ) * 5
+    score += len(
+        re.findall(
+            rf"\b(?:{POV_VERB_PATTERN})\b[^\n.?!]{{0,60}}\b{escaped}\b",
+            content,
+            flags=re.IGNORECASE,
+        )
+    ) * 3
+    return score
+
+
+def _infer_narrator_speaker(chapter_content: str, segments: list[dict], known_names: list[str]) -> str:
+    narration_text = " ".join(
+        str(segment.get("text") or "").strip()
+        for segment in segments
+        if segment.get("type") == "narration"
+    )
+    if not narration_text.strip() or not known_names:
+        return "Narrator"
+
+    dialogue_counts: dict[str, int] = {}
+    for segment in segments:
+        speaker = str(segment.get("speaker") or "").strip()
+        if segment.get("type") == "dialogue" and speaker and speaker != "Narrator":
+            dialogue_counts[speaker.lower()] = dialogue_counts.get(speaker.lower(), 0) + 1
+
+    scored: list[tuple[str, int]] = []
+    for name in known_names:
+        score = _score_narration_focus(narration_text, name)
+        score += dialogue_counts.get(name.lower(), 0)
+        if score > 0:
+            scored.append((name, score))
+
+    if not scored:
+        return "Narrator"
+
+    scored.sort(key=lambda item: item[1], reverse=True)
+    best_name, best_score = scored[0]
+    second_score = scored[1][1] if len(scored) > 1 else 0
+    if best_score >= 6 and best_score >= second_score + 2:
+        return best_name
+    return "Narrator"
+
+
 def _guess_delivery(dialogue_text: str, context: str) -> str:
     lowered = f"{dialogue_text} {context}".lower()
     if any(word in lowered for word in ("whisper", "murmur", "breathed")):
@@ -416,10 +475,23 @@ def _finalize_segments(chapter_content: str, segments: list[dict]) -> list[dict]
     return finalized
 
 
+def _apply_narrator_speaker(segments: list[dict], narrator_speaker: str) -> list[dict]:
+    target = narrator_speaker.strip() or "Narrator"
+    updated: list[dict] = []
+    for segment in segments:
+        if segment.get("type") == "narration":
+            updated.append({**segment, "speaker": target})
+        else:
+            updated.append(segment)
+    return updated
+
+
 def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     roster = sync_character_voices(book_id=book_id, chapter_content=chapter_content)
     known_names = [entry["character_name"] for entry in roster["characters"]]
-    segments = _finalize_segments(chapter_content, _segment_text(chapter_content, known_names))
+    drafted_segments = _segment_text(chapter_content, known_names)
+    narrator_speaker = _infer_narrator_speaker(chapter_content, drafted_segments, known_names)
+    segments = _finalize_segments(chapter_content, _apply_narrator_speaker(drafted_segments, narrator_speaker))
     _, similarity_ratio = _coverage_metrics(chapter_content, segments)
     payload = {
         "book_id": book_id,
@@ -427,6 +499,7 @@ def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, c
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster["characters"],
+        "narrator_speaker": narrator_speaker,
         "segments": segments,
         "coverage_ratio": round(similarity_ratio, 4),
         "unassigned_segment_count": 0,
@@ -442,12 +515,14 @@ def update_chapter_voice_map(
     chapter_content: str,
     segments: list[dict],
     characters: list[dict] | None = None,
+    narrator_speaker: str | None = None,
 ) -> dict:
     roster = load_book_voice_map(book_id)
     roster_characters = roster.get("characters") or []
     if characters is not None:
         roster_characters = [_normalize_character_payload(entry) for entry in characters if entry]
-    finalized_segments = _finalize_segments(chapter_content, segments)
+    normalized_narrator = str(narrator_speaker or "Narrator").strip() or "Narrator"
+    finalized_segments = _finalize_segments(chapter_content, _apply_narrator_speaker(segments, normalized_narrator))
     _, similarity_ratio = _coverage_metrics(chapter_content, finalized_segments)
     payload = {
         "book_id": book_id,
@@ -455,12 +530,23 @@ def update_chapter_voice_map(
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster_characters,
+        "narrator_speaker": normalized_narrator,
         "segments": finalized_segments,
         "coverage_ratio": round(similarity_ratio, 4),
         "unassigned_segment_count": 0,
     }
     _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
     return payload
+
+
+def rebuild_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
+    path = get_chapter_voice_map_path(book_id, chapter_id)
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
 
 
 def load_book_voice_map(book_id: int) -> dict:
@@ -483,7 +569,12 @@ def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, ch
     if payload is None:
         return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
     payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
-    payload["segments"] = _finalize_segments(chapter_content, payload.get("segments") or [])
+    narrator_speaker = str(payload.get("narrator_speaker") or "Narrator").strip() or "Narrator"
+    payload["narrator_speaker"] = narrator_speaker
+    payload["segments"] = _finalize_segments(
+        chapter_content,
+        _apply_narrator_speaker(payload.get("segments") or [], narrator_speaker),
+    )
     _, similarity_ratio = _coverage_metrics(chapter_content, payload["segments"])
     payload["coverage_ratio"] = round(similarity_ratio, 4)
     payload["unassigned_segment_count"] = 0

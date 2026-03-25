@@ -16,6 +16,7 @@ from voice_mapping import (
     VoiceMapValidationError,
     load_book_voice_map,
     load_chapter_voice_map,
+    rebuild_chapter_voice_map,
     update_book_voice_map,
     update_chapter_voice_map,
 )
@@ -38,6 +39,7 @@ class BookVoiceMapUpdateRequest(BaseModel):
 class ChapterVoiceMapUpdateRequest(BaseModel):
     segments: list[dict[str, Any]]
     characters: Optional[list[dict[str, Any]]] = None
+    narrator_speaker: Optional[str] = None
 
 
 class PreviewRequest(BaseModel):
@@ -135,9 +137,25 @@ def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoice
             chapter_content=chapter.content or "",
             segments=body.segments,
             characters=body.characters,
+            narrator_speaker=body.narrator_speaker,
         )
     except VoiceMapValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/chapters/{chapter_id}/voice-map/rebuild")
+def rebuild_chapter_plan(request: Request, chapter_id: int):
+    """Rebuild the chapter voice plan from the cleaned roster and current chapter text."""
+    require_auth(request)
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    return rebuild_chapter_voice_map(
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        chapter_content=chapter.content or "",
+    )
 
 
 async def _generate_preview_audio(request: Request, body: PreviewRequest):

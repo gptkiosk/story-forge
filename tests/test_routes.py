@@ -486,6 +486,7 @@ class TestVoiceMappingRoutes:
         chapter_map = chapter_map_response.json()
         assert any(segment["type"] == "dialogue" for segment in chapter_map["segments"])
         assert any(segment["speaker"] == "Mira" for segment in chapter_map["segments"])
+        assert chapter_map["narrator_speaker"] == "Narrator"
 
 
     def test_voice_map_save_routes_persist_manual_edits(self, tmp_path, monkeypatch):
@@ -589,7 +590,69 @@ class TestVoiceMappingRoutes:
         saved_chapter_map = save_chapter_map_response.json()
         assert saved_chapter_map["segments"][2]["speaker"] == "Mira"
         assert saved_chapter_map["segments"][2]["delivery_hint"] == "quiet"
+        assert saved_chapter_map["narrator_speaker"] == "Narrator"
         assert saved_chapter_map["coverage_ratio"] >= 0.96
+
+    def test_rebuild_chapter_plan_uses_cleaned_roster_and_infers_pov_narrator(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "POV Voice Book",
+                "author": "Tester",
+                "description": "POV narrator test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": (
+                    'Mira checked the corridor again. Mira felt the station shift beneath her boots. '
+                    'Mira knew the breach was getting worse. "We need to move," Jamal said.'
+                ),
+            },
+        )
+
+        save_roster_response = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [
+                    {"character_name": "Mira", "elevenlabs_voice_id": "voice_mira"},
+                    {"character_name": "Jamal", "elevenlabs_voice_id": "voice_jamal"},
+                ],
+                "narrator": {"character_name": "Narrator"},
+            },
+        )
+        assert save_roster_response.status_code == 200
+
+        rebuild_response = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/rebuild")
+        assert rebuild_response.status_code == 200
+        rebuilt_map = rebuild_response.json()
+        assert rebuilt_map["narrator_speaker"] == "Mira"
+        narration_speakers = {
+            segment["speaker"]
+            for segment in rebuilt_map["segments"]
+            if segment["type"] == "narration"
+        }
+        assert narration_speakers == {"Mira"}
 
     def test_voice_map_save_rejects_missing_coverage(self, tmp_path, monkeypatch):
         import voice_mapping
