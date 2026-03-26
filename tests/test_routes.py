@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import auth as auth_module
+from ai_providers import ai_provider_manager
 import context_engine
 import db
 import db_helpers
@@ -653,6 +654,72 @@ class TestVoiceMappingRoutes:
             if segment["type"] == "narration"
         }
         assert narration_speakers == {"Mira"}
+
+    def test_ai_refine_chapter_plan_updates_narrator_and_speakers(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        async def fake_refine_voice_plan(**kwargs):
+            assert kwargs["chapter_title"] == "Chapter 1"
+            return {
+                "success": True,
+                "narrator_speaker": "Mira",
+                "segment_updates": [
+                    {"index": 1, "speaker": "Mira", "delivery_hint": "heavy", "type": "narration"},
+                    {"index": 2, "speaker": "Jamal", "delivery_hint": "heightened", "type": "dialogue"},
+                ],
+            }
+
+        monkeypatch.setattr(ai_provider_manager, "refine_voice_plan", fake_refine_voice_plan)
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "AI Voice Book",
+                "author": "Tester",
+                "description": "AI voice plan test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": 'Mira pressed her palm against the hatch. "Move now," Jamal said.',
+            },
+        )
+
+        client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [
+                    {"character_name": "Mira", "elevenlabs_voice_id": "voice_mira"},
+                    {"character_name": "Jamal", "elevenlabs_voice_id": "voice_jamal"},
+                ],
+                "narrator": {"character_name": "Narrator"},
+            },
+        )
+
+        refine_response = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/refine")
+        assert refine_response.status_code == 200
+        refined_map = refine_response.json()
+        assert refined_map["narrator_speaker"] == "Mira"
+        assert refined_map["segments"][0]["speaker"] == "Mira"
+        assert refined_map["segments"][1]["speaker"] == "Jamal"
 
     def test_voice_map_save_rejects_missing_coverage(self, tmp_path, monkeypatch):
         import voice_mapping

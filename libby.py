@@ -39,6 +39,7 @@ class SubmissionType:
     CONTEXT_UPDATE = "context_update"          # Update Libby's story context
     CONTEXT_REFINEMENT = "context_refinement"  # Refine extracted story context
     NEXT_CHAPTER_IDEAS = "next_chapter_ideas"  # Generate next chapter scenarios
+    VOICE_PLAN_REFINEMENT = "voice_plan_refinement"  # Refine chapter narrator/dialogue assignments
 
 
 class SubmissionStatus:
@@ -232,6 +233,33 @@ class LibbyClient:
 
         return await self._send_request("/process", payload)
 
+    async def refine_voice_plan(
+        self,
+        *,
+        chapter_title: str,
+        chapter_content: str,
+        story_context: dict,
+        voice_roster: dict,
+        chapter_voice_map: dict,
+    ) -> dict:
+        payload = {
+            "type": SubmissionType.VOICE_PLAN_REFINEMENT,
+            "chapter_title": chapter_title,
+            "chapter_content": chapter_content,
+            "story_context": story_context,
+            "voice_roster": voice_roster,
+            "chapter_voice_map": chapter_voice_map,
+            "instructions": (
+                "Refine narrator and dialogue speaker assignments for a fiction chapter. "
+                "Use the cleaned roster, preserve continuity, and choose a chapter-level "
+                "narration speaker if the chapter is effectively told through one character's perspective. "
+                "Do not rewrite or truncate any segment text. Return JSON with narrator_speaker and "
+                "segment_updates. Each segment_updates item must include index, speaker, delivery_hint, and type."
+            ),
+            "timestamp": datetime.now().isoformat(),
+        }
+        return await self._send_request("/process", payload)
+
     async def _send_request(self, endpoint: str, payload: dict) -> dict:
         """Send a request to Libby."""
         if self._transport() == "openclaw":
@@ -341,6 +369,15 @@ class LibbyClient:
                 "Task: draft one chapter from the supplied story direction.\n"
                 "Style constraints: do not use em dashes, and do not use triple hyphen scene breaks. Replace them with commas, periods, or plain sentence transitions.\n"
                 "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.VOICE_PLAN_REFINEMENT:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: refine a chapter voice plan.\n"
+                "Preserve the existing segment text exactly. Do not merge, split, or rewrite text.\n"
+                "Pick the best chapter-level narration speaker from the cleaned roster or Narrator.\n"
+                "Output shape: {\"narrator_speaker\":\"...\",\"segment_updates\":[{\"index\":1,\"speaker\":\"...\",\"delivery_hint\":\"...\",\"type\":\"narration\"}]}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
         if request_type == SubmissionType.CHAPTER_REVIEW:

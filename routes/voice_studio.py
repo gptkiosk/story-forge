@@ -7,6 +7,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import Any, Optional
 from pydantic import BaseModel
+import asyncio
+import json
+from ai_providers import ai_provider_manager
+from context_engine import get_context_state
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
 from .auth_utils import require_auth
@@ -48,6 +52,54 @@ class PreviewRequest(BaseModel):
     text: str
     model: Optional[str] = None
     speed: float = 1.0
+
+
+def _build_story_context(book_id: int) -> dict:
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    context_state = get_context_state(book_id)
+    return {
+        "book": {
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "description": book.description,
+            "status": book.status.value if hasattr(book.status, "value") else str(book.status),
+        },
+        "context_summary": context_state.get("summary"),
+    }
+
+
+def _apply_ai_voice_plan_updates(chapter_voice_map: dict, narrator_speaker: str, segment_updates: list[dict[str, Any]]) -> dict:
+    update_map: dict[int, dict[str, Any]] = {}
+    for update in segment_updates or []:
+        try:
+            index = int(update.get("index"))
+        except Exception:
+            continue
+        if index <= 0:
+            continue
+        update_map[index] = update
+
+    segments: list[dict[str, Any]] = []
+    for segment in chapter_voice_map.get("segments") or []:
+        index = int(segment.get("index") or len(segments) + 1)
+        update = update_map.get(index, {})
+        segments.append(
+            {
+                "index": index,
+                "type": update.get("type") or segment.get("type") or "narration",
+                "speaker": update.get("speaker") or segment.get("speaker") or "Narrator",
+                "text": segment.get("text") or "",
+                "delivery_hint": update.get("delivery_hint") or segment.get("delivery_hint") or "neutral",
+            }
+        )
+
+    return {
+        "narrator_speaker": narrator_speaker or chapter_voice_map.get("narrator_speaker") or "Narrator",
+        "segments": segments,
+    }
 
 
 @router.get("/providers")
@@ -156,6 +208,54 @@ def rebuild_chapter_plan(request: Request, chapter_id: int):
         chapter_title=chapter.title,
         chapter_content=chapter.content or "",
     )
+
+
+@router.post("/chapters/{chapter_id}/voice-map/refine")
+def refine_chapter_plan(request: Request, chapter_id: int):
+    """Use the active AI provider to refine chapter narrator and dialogue assignments."""
+    require_auth(request)
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_voice_map = load_chapter_voice_map(
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        chapter_content=chapter.content or "",
+    )
+    voice_roster = load_book_voice_map(chapter.book_id)
+    story_context = _build_story_context(chapter.book_id)
+
+    response = asyncio.run(
+        ai_provider_manager.refine_voice_plan(
+            chapter_title=chapter.title,
+            chapter_content=chapter.content or "",
+            story_context=story_context,
+            voice_roster=voice_roster,
+            chapter_voice_map=chapter_voice_map,
+        )
+    )
+    if not response.get("success"):
+        raise HTTPException(status_code=503, detail=response.get("error") or "AI voice-plan refinement is unavailable.")
+
+    refined = _apply_ai_voice_plan_updates(
+        chapter_voice_map=chapter_voice_map,
+        narrator_speaker=str(response.get("narrator_speaker") or "Narrator"),
+        segment_updates=response.get("segment_updates") or [],
+    )
+    try:
+        return update_chapter_voice_map(
+            book_id=chapter.book_id,
+            chapter_id=chapter.id,
+            chapter_title=chapter.title,
+            chapter_content=chapter.content or "",
+            segments=refined["segments"],
+            characters=voice_roster.get("characters") or [],
+            narrator_speaker=refined["narrator_speaker"],
+        )
+    except VoiceMapValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 async def _generate_preview_audio(request: Request, body: PreviewRequest):

@@ -96,6 +96,32 @@ class AIProviderManager:
             source_word_count=source_word_count,
         )
 
+    async def refine_voice_plan(
+        self,
+        *,
+        chapter_title: str,
+        chapter_content: str,
+        story_context: dict,
+        voice_roster: dict,
+        chapter_voice_map: dict,
+    ) -> dict:
+        provider = get_ai_provider()
+        if provider == "openclaw":
+            return await libby_client.refine_voice_plan(
+                chapter_title=chapter_title,
+                chapter_content=chapter_content,
+                story_context=story_context,
+                voice_roster=voice_roster,
+                chapter_voice_map=chapter_voice_map,
+            )
+        return await self._openrouter_refine_voice_plan(
+            chapter_title=chapter_title,
+            chapter_content=chapter_content,
+            story_context=story_context,
+            voice_roster=voice_roster,
+            chapter_voice_map=chapter_voice_map,
+        )
+
     async def _chat_json(self, *, system_prompt: str, user_prompt: str) -> dict:
         settings = get_openrouter_settings()
         api_key = settings.get("api_key", "")
@@ -207,6 +233,41 @@ class AIProviderManager:
         if not response.get("success"):
             return response
         return {"success": True, "summary": response["data"]}
+
+    async def _openrouter_refine_voice_plan(
+        self,
+        *,
+        chapter_title: str,
+        chapter_content: str,
+        story_context: dict,
+        voice_roster: dict,
+        chapter_voice_map: dict,
+    ) -> dict:
+        response = await self._chat_json(
+            system_prompt=(
+                "You refine voice assignments for a fiction audiobook workflow. Return strict JSON only. "
+                "Never rewrite segment text. Preserve continuity, use the cleaned character roster, and select "
+                "a chapter-level narration speaker when the chapter is strongly in one character's perspective."
+            ),
+            user_prompt=(
+                f"Chapter title: {chapter_title}\n"
+                f"Chapter content:\n{chapter_content}\n\n"
+                f"Story context JSON:\n{json.dumps(story_context, ensure_ascii=True)}\n\n"
+                f"Voice roster JSON:\n{json.dumps(voice_roster, ensure_ascii=True)}\n\n"
+                f"Current chapter voice map JSON:\n{json.dumps(chapter_voice_map, ensure_ascii=True)}\n\n"
+                "Return JSON with narrator_speaker and segment_updates. "
+                "segment_updates must be an array of objects with index, speaker, delivery_hint, and type. "
+                "Only change assignments, not text."
+            ),
+        )
+        if not response.get("success"):
+            return response
+        data = response["data"]
+        return {
+            "success": True,
+            "narrator_speaker": data.get("narrator_speaker") or "Narrator",
+            "segment_updates": data.get("segment_updates") or [],
+        }
 
 
 ai_provider_manager = AIProviderManager()
