@@ -491,6 +491,24 @@ def _apply_narrator_speaker(segments: list[dict], narrator_speaker: str) -> list
     return updated
 
 
+def _count_unassigned_segments(segments: list[dict], characters: list[dict], narrator_speaker: str | None = None) -> int:
+    valid_speakers = {
+        "Narrator",
+        (narrator_speaker or "Narrator").strip() or "Narrator",
+    }
+    for entry in characters or []:
+        name = str(entry.get("character_name") or "").strip()
+        if name:
+            valid_speakers.add(name)
+
+    count = 0
+    for segment in segments or []:
+        speaker = str(segment.get("speaker") or "").strip()
+        if segment.get("type") == "dialogue" and (not speaker or speaker == "Narrator" or speaker == "unassigned_dialogue" or speaker not in valid_speakers):
+            count += 1
+    return count
+
+
 def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     roster = sync_character_voices(book_id=book_id, chapter_content=chapter_content)
     known_names = [entry["character_name"] for entry in roster["characters"]]
@@ -507,7 +525,7 @@ def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, c
         "narrator_speaker": narrator_speaker,
         "segments": segments,
         "coverage_ratio": round(similarity_ratio, 4),
-        "unassigned_segment_count": 0,
+        "unassigned_segment_count": _count_unassigned_segments(segments, roster["characters"], narrator_speaker),
     }
     _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
     return payload
@@ -538,7 +556,7 @@ def update_chapter_voice_map(
         "narrator_speaker": normalized_narrator,
         "segments": finalized_segments,
         "coverage_ratio": round(similarity_ratio, 4),
-        "unassigned_segment_count": 0,
+        "unassigned_segment_count": _count_unassigned_segments(finalized_segments, roster_characters, normalized_narrator),
     }
     _write_json(get_chapter_voice_map_path(book_id, chapter_id), payload)
     return payload
@@ -582,7 +600,7 @@ def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, ch
     )
     _, similarity_ratio = _coverage_metrics(chapter_content, payload["segments"])
     payload["coverage_ratio"] = round(similarity_ratio, 4)
-    payload["unassigned_segment_count"] = 0
+    payload["unassigned_segment_count"] = _count_unassigned_segments(payload["segments"], payload["characters"], narrator_speaker)
     return payload
 
 
