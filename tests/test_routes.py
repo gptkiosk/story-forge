@@ -890,6 +890,8 @@ class TestVoiceMappingRoutes:
         roster_response = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
         assert roster_response.status_code == 200
         roster = roster_response.json()
+        assert roster["characters"][0]["character_name"] == "Dad"
+        assert roster["characters"][1]["character_name"] == "Tommy"
         dad = next(entry for entry in roster["characters"] if entry["character_name"] == "Dad")
         assert dad["voice_name"] == "Roger"
         assert dad["gender"] == "Laid-Back, Casual, Resonant"

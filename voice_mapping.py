@@ -234,18 +234,34 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
             existing_map[lowered] = row
 
         session.commit()
-        rows = (
-            session.query(CharacterVoice)
-            .filter(CharacterVoice.book_id == book_id)
-            .order_by(CharacterVoice.character_name.asc())
-            .all()
+        rows = session.query(CharacterVoice).filter(CharacterVoice.book_id == book_id).all()
+        row_map = {row.character_name.lower(): row for row in rows}
+        ordered_rows: list[CharacterVoice] = []
+        seen_order: set[str] = set()
+
+        for entry in existing_payload.get("characters") or []:
+            key = str(entry.get("character_name") or "").strip().lower()
+            row = row_map.get(key)
+            if not key or row is None or key in seen_order:
+                continue
+            ordered_rows.append(row)
+            seen_order.add(key)
+
+        remaining_rows = [row for key, row in row_map.items() if key not in seen_order]
+        remaining_rows.sort(
+            key=lambda row: (
+                not bool(row.elevenlabs_voice_id or row.voice_name),
+                row.character_name.lower(),
+            )
         )
+        ordered_rows.extend(remaining_rows)
+
         payload = {
             "book_id": book_id,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "characters": [
                 _serialize_character_voice(row, existing_character_payloads.get(row.character_name.lower()))
-                for row in rows
+                for row in ordered_rows
             ],
             "narrator": _normalize_narrator_payload(existing_narrator),
         }
