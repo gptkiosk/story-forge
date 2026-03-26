@@ -8,8 +8,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from pathlib import Path
 
-from context_db import ContextSummary, context_db_enabled, get_context_session
-from db import CharacterVoice, DATA_DIR, get_session
+from db import Chapter, CharacterVoice, DATA_DIR, get_session
 
 VOICE_MAP_ROOT = DATA_DIR / "voice_maps"
 
@@ -121,19 +120,6 @@ def _extract_candidate_names(text: str) -> list[str]:
     return results[:16]
 
 
-def _get_context_characters(book_id: int) -> list[str]:
-    if not context_db_enabled():
-        return []
-    session = get_context_session()
-    try:
-        summary = session.query(ContextSummary).filter(ContextSummary.book_id == book_id).first()
-        if not summary or not isinstance(summary.characters, list):
-            return []
-        return [str(name).strip() for name in summary.characters if str(name).strip()]
-    finally:
-        session.close()
-
-
 def _normalize_voice_settings(settings: dict | None) -> dict:
     merged = dict(ELEVENLABS_DEFAULT_SETTINGS)
     if isinstance(settings, dict):
@@ -192,13 +178,31 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
 
         candidates: list[str] = []
         seen_candidates: set[str] = set()
-        for source in (_get_context_characters(book_id), _extract_candidate_names(chapter_content)):
+        chapter_texts = [
+            (row.content or "").strip()
+            for row in session.query(Chapter).filter(Chapter.book_id == book_id).all()
+            if (row.content or "").strip()
+        ]
+        if chapter_content.strip():
+            chapter_texts.append(chapter_content.strip())
+
+        for source in (_extract_candidate_names("\n\n".join(chapter_texts)),):
             for name in source:
                 lowered = name.lower()
                 if lowered in seen_candidates:
                     continue
                 seen_candidates.add(lowered)
                 candidates.append(name)
+
+        active_candidate_names = {name.lower() for name in candidates}
+
+        for lowered, row in list(existing_map.items()):
+            if (
+                row.description == "Auto-detected for voice mapping."
+                and lowered not in active_candidate_names
+            ):
+                session.delete(row)
+                existing_map.pop(lowered, None)
 
         for name in candidates:
             lowered = name.lower()

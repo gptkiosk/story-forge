@@ -489,6 +489,49 @@ class TestVoiceMappingRoutes:
         assert any(segment["speaker"] == "Mira" for segment in chapter_map["segments"])
         assert chapter_map["narrator_speaker"] == "Narrator"
 
+    def test_voice_roster_uses_book_chapters_only(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Roster Source Book",
+                "author": "Tester",
+                "description": "Roster source test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={
+                "content": 'Jamal scanned the door. "We move now," Mira said.',
+            },
+        )
+
+        roster_response = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert roster_response.status_code == 200
+        names = [entry["character_name"] for entry in roster_response.json()["characters"]]
+        assert "Jamal" in names
+        assert "Mira" in names
+        assert "Book One Hero" not in names
+        assert "Series Villain" not in names
+
 
     def test_voice_map_save_routes_persist_manual_edits(self, tmp_path, monkeypatch):
         import voice_mapping
