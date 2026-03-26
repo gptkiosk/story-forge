@@ -5,11 +5,13 @@ Integration settings routes for Story Forge.
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+import tts as tts_module
 from integrations import (
     get_integration_status,
     get_settings,
     update_ai_settings,
     update_backup_settings,
+    update_tts_settings,
 )
 from .auth_utils import require_auth
 
@@ -47,6 +49,16 @@ class BackupSettingsRequest(BaseModel):
     google_drive: BackupGoogleDriveRequest = BackupGoogleDriveRequest()
 
 
+class ElevenLabsSettingsRequest(BaseModel):
+    enabled: bool = True
+    api_key: str | None = None
+
+
+class TTSSettingsRequest(BaseModel):
+    provider: str = "elevenlabs"
+    elevenlabs: ElevenLabsSettingsRequest = ElevenLabsSettingsRequest()
+
+
 @router.get("")
 def get_integrations(request: Request):
     require_auth(request)
@@ -82,5 +94,27 @@ def save_backup_settings(request: Request, body: BackupSettingsRequest):
     require_auth(request)
     try:
         return update_backup_settings(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.put("/tts")
+def save_tts_settings(request: Request, body: TTSSettingsRequest):
+    require_auth(request)
+    try:
+        settings = update_tts_settings(
+            {
+                "provider": body.provider,
+                "elevenlabs": {
+                    "enabled": body.elevenlabs.enabled,
+                },
+                "elevenlabs_api_key": body.elevenlabs.api_key,
+            }
+        )
+        if body.elevenlabs.api_key:
+            tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider(api_key=body.elevenlabs.api_key)
+        elif tts_module.tts_manager._elevenlabs is not None:
+            tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider()
+        return settings
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -311,6 +311,9 @@ def update_user_preference(
         if not (1.2 <= editor_line_height <= 2.0):
             raise ValueError("Line height must be between 1.2 and 2.0")
 
+    if default_tts_provider is not None and default_tts_provider != "elevenlabs":
+        raise ValueError("Only ElevenLabs is currently supported as the default TTS provider.")
+
     db = get_session()
     try:
         prefs = _get_or_create_preferences_record(db, user_id)

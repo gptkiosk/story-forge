@@ -14,6 +14,7 @@ from context_engine import build_runtime_context_packet
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
 from style_studio import build_style_context
+from integrations import get_elevenlabs_api_key
 from .auth_utils import require_auth
 
 import tts as tts_module
@@ -108,36 +109,44 @@ def list_providers(request: Request):
     """Get available TTS providers and their configuration status."""
     require_auth(request)
     manager = tts_module.tts_manager
-    providers = []
-    for p in tts_module.TTSProvider:
-        providers.append({
-            "id": p.value,
-            "name": p.value.title(),
-            "configured": manager.is_provider_configured(p),
-            "models": manager.get_provider(p).get_available_models(),
-        })
-    return {"providers": providers}
+    provider = tts_module.TTSProvider.ELEVENLABS
+    return {
+        "providers": [{
+            "id": provider.value,
+            "name": "ElevenLabs",
+            "configured": manager.is_provider_configured(provider),
+            "models": manager.get_provider(provider).get_available_models(),
+        }]
+    }
 
 
 @router.get("/voices/{provider}")
 async def list_voices(request: Request, provider: str):
     """Get available voices for a provider."""
     require_auth(request)
+    if provider != "elevenlabs":
+        raise HTTPException(status_code=400, detail="Only ElevenLabs is currently supported in Voice Studio.")
+
+    tts_provider = tts_module.TTSProvider.ELEVENLABS
+    if not get_elevenlabs_api_key():
+        raise HTTPException(status_code=400, detail="ElevenLabs API key is not configured. Add it in Integrations.")
+
     try:
-        tts_provider = tts_module.TTSProvider(provider)
         voices = await tts_module.tts_manager.list_voices(tts_provider)
-        return {"voices": [{
-            "voice_id": v.voice_id,
-            "name": v.name,
-            "gender": v.gender,
-            "language": v.language,
-            "preview_url": v.preview_url,
-            "is_cloned": v.is_cloned,
-        } for v in voices]}
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"Unable to load ElevenLabs voices: {e}")
+
+    if not voices:
+        raise HTTPException(status_code=502, detail="ElevenLabs returned no voices. Check the API key and account access in Integrations.")
+
+    return {"voices": [{
+        "voice_id": v.voice_id,
+        "name": v.name,
+        "gender": v.gender,
+        "language": v.language,
+        "preview_url": v.preview_url,
+        "is_cloned": v.is_cloned,
+    } for v in voices]}
 
 
 @router.get("/books/{book_id}/voice-map")
@@ -274,6 +283,8 @@ async def _generate_preview_audio(request: Request, body: PreviewRequest):
         tts_provider = tts_module.TTSProvider(body.provider)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {body.provider}")
+    if tts_provider != tts_module.TTSProvider.ELEVENLABS:
+        raise HTTPException(status_code=400, detail="Only ElevenLabs is currently supported in Voice Studio.")
 
     manager = tts_module.tts_manager
     if not manager.is_provider_configured(tts_provider):
@@ -327,6 +338,8 @@ async def generate_speech(request: Request, body: GenerateRequest):
         tts_provider = tts_module.TTSProvider(body.provider)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {body.provider}")
+    if tts_provider != tts_module.TTSProvider.ELEVENLABS:
+        raise HTTPException(status_code=400, detail="Only ElevenLabs is currently supported in Voice Studio.")
 
     manager = tts_module.tts_manager
     if not manager.is_provider_configured(tts_provider):
@@ -445,6 +458,8 @@ def configure_provider(request: Request, body: dict):
     api_key = body.get("api_key")
     if not provider or not api_key:
         raise HTTPException(status_code=400, detail="provider and api_key required")
+    if provider != "elevenlabs":
+        raise HTTPException(status_code=400, detail="Only ElevenLabs is currently supported in Voice Studio.")
 
     try:
         import keyring
@@ -452,12 +467,7 @@ def configure_provider(request: Request, body: dict):
         keyring.set_password("story-forge", keychain_key, api_key)
 
         manager = tts_module.tts_manager
-        if provider == "minimax":
-            manager._minimax = tts_module.MiniMaxProvider(api_key=api_key)
-        elif provider == "elevenlabs":
-            manager._elevenlabs = tts_module.ElevenLabsProvider(api_key=api_key)
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        manager._elevenlabs = tts_module.ElevenLabsProvider(api_key=api_key)
 
         return {"status": "configured", "provider": provider}
     except Exception as e:

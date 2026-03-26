@@ -136,6 +136,7 @@ story-forge/
 - `GET /api/auth/preferences` returns saved per-user profile settings.
 - `PUT /api/auth/preferences` updates profile settings such as theme, editor font size, and default TTS provider.
 - OpenRouter API keys are stored in macOS Keychain.
+- ElevenLabs API keys can be stored in macOS Keychain or entered through the Integrations screen for non-local setups.
 - Google Drive backup uses the signed-in Google account plus Drive file access.
 
 ## Libby Integration
@@ -148,6 +149,7 @@ Current behavior:
 - OpenClaw calls are routed through the local `openclaw` CLI
 - JSON-only prompts are used for context refinement, next-chapter ideas, and draft generation
 - Chapter creation and chapter edits now build background voice-map JSON artifacts for Voice Studio, including a per-book character roster and a per-chapter narration/dialogue plan.
+- Voice Studio currently uses an ElevenLabs-first workflow; the architecture remains extensible for additional voice providers later.
 - Response parsing is hardened for OpenClaw’s nested `result.payloads[].text` output shape
 
 ## Running Locally

@@ -357,7 +357,7 @@ class UserPreference(Base):
     editor_line_height = Column(Float, default=1.6)  # 1.2-2.0
     
     # Voice studio preferences
-    default_tts_provider = Column(String(20), default="minimax")
+    default_tts_provider = Column(String(20), default="elevenlabs")
     
     # Timestamps
     created_at = Column(DateTime, default=func.now(), nullable=False)

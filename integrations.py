@@ -19,6 +19,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 INTEGRATIONS_PATH = DATA_DIR / "integrations.json"
 
 OPENROUTER_KEYCHAIN_KEY = "story-forge-openrouter-api-key"
+ELEVENLABS_KEYCHAIN_KEY = "story-forge-elevenlabs-api-key"
 
 DEFAULT_SETTINGS = {
     "ai": {
@@ -41,6 +42,12 @@ DEFAULT_SETTINGS = {
         "google_drive": {
             "enabled": False,
             "folder_name": "Story Forge Backups",
+        },
+    },
+    "tts": {
+        "provider": "elevenlabs",
+        "elevenlabs": {
+            "enabled": True,
         },
     },
 }
@@ -97,6 +104,7 @@ def get_settings() -> dict:
     sanitized = copy.deepcopy(settings)
     sanitized["ai"]["openrouter"]["api_key_configured"] = bool(_get_secret(OPENROUTER_KEYCHAIN_KEY))
     sanitized["backup"]["google_drive"]["coming_soon"] = False
+    sanitized["tts"]["elevenlabs"]["api_key_configured"] = bool(_get_secret(ELEVENLABS_KEYCHAIN_KEY))
     return sanitized
 
 
@@ -132,12 +140,38 @@ def update_backup_settings(payload: dict) -> dict:
     return get_settings()["backup"]
 
 
+def update_tts_settings(payload: dict) -> dict:
+    settings = _load_raw_settings()
+    tts_settings = payload or {}
+    provider = tts_settings.get("provider", settings["tts"]["provider"])
+    if provider != "elevenlabs":
+        raise ValueError("Only ElevenLabs is currently supported in the active voice workflow.")
+
+    next_settings = copy.deepcopy(settings)
+    next_settings["tts"] = _deep_merge(next_settings["tts"], {k: v for k, v in tts_settings.items() if k != "elevenlabs_api_key"})
+    next_settings["tts"]["provider"] = "elevenlabs"
+    _save_raw_settings(next_settings)
+
+    if "elevenlabs_api_key" in tts_settings:
+        _set_secret(ELEVENLABS_KEYCHAIN_KEY, tts_settings.get("elevenlabs_api_key"))
+
+    return get_settings()["tts"]
+
+
 def get_ai_provider() -> str:
     return get_settings()["ai"]["provider"]
 
 
 def get_backup_provider() -> str:
     return get_settings()["backup"]["provider"]
+
+
+def get_tts_provider() -> str:
+    return get_settings()["tts"]["provider"]
+
+
+def get_elevenlabs_api_key() -> str:
+    return _get_secret(ELEVENLABS_KEYCHAIN_KEY)
 
 
 def get_openclaw_settings() -> dict:
@@ -191,6 +225,13 @@ def get_integration_status() -> dict:
                 **backup_settings["google_drive"],
                 "configured": auth.has_google_drive_access(),
                 "coming_soon": False,
+            },
+        },
+        "tts": {
+            "provider": settings["tts"]["provider"],
+            "elevenlabs": {
+                **settings["tts"]["elevenlabs"],
+                "configured": settings["tts"]["elevenlabs"].get("api_key_configured", False),
             },
         },
     }
