@@ -18,6 +18,8 @@ import libby
 import tts as tts_module
 from db import Base
 from fastapi_app import app
+from routes import libby_workflow as libby_workflow_routes
+from routes import voice_studio as voice_studio_routes
 
 
 def make_test_session_factory(tmp_path):
@@ -179,6 +181,19 @@ class TestContextRoutes:
                 "source_word_count": 1200,
                 "updated_at": datetime.now().isoformat(),
             },
+            "runtime_context": {
+                "summary_text": "Active timeline-safe context",
+                "characters": ["Ari Vale"],
+                "plot_threads": ["The reactor mystery deepens."],
+                "world_details": ["The colony ship drifts above Europa."],
+                "style_notes": ["Third-person leaning."],
+                "source_document_count": 1,
+                "source_word_count": 1200,
+                "timeline_guidance": {
+                    "future_context_suppressed": True,
+                    "future_document_titles": ["Book Three"],
+                },
+            },
             "latest_job": None,
             "documents": [],
         }
@@ -187,11 +202,24 @@ class TestContextRoutes:
             assert book_id == 42
             return context_state
 
-        def fake_queue_context_ingestion(book_id, title, content_text, source_filename=None):
+        def fake_queue_context_ingestion(
+            book_id,
+            title,
+            content_text,
+            source_filename=None,
+            timeline_relation="current_book",
+            chronology_label=None,
+            use_for_facts=None,
+            use_for_style=None,
+        ):
             assert book_id == 42
             assert title == "Book One"
             assert content_text == "Full manuscript text"
             assert source_filename == "book-one.txt"
+            assert timeline_relation == "future_timeline"
+            assert chronology_label == "Occurs after Book Two"
+            assert use_for_facts is False
+            assert use_for_style is True
             context_state["latest_job"] = {
                 "id": 9,
                 "status": "queued",
@@ -205,10 +233,27 @@ class TestContextRoutes:
             return context_state["latest_job"]
 
         def fake_queue_context_ingestion_with_refine(
-            book_id, title, content_text, source_filename=None, refine_with_libby=False
+            book_id,
+            title,
+            content_text,
+            source_filename=None,
+            refine_with_libby=False,
+            timeline_relation="current_book",
+            chronology_label=None,
+            use_for_facts=None,
+            use_for_style=None,
         ):
             assert refine_with_libby is True
-            return fake_queue_context_ingestion(book_id, title, content_text, source_filename)
+            return fake_queue_context_ingestion(
+                book_id,
+                title,
+                content_text,
+                source_filename,
+                timeline_relation,
+                chronology_label,
+                use_for_facts,
+                use_for_style,
+            )
 
         def fake_queue_context_refinement(book_id):
             assert book_id == 42
@@ -260,6 +305,10 @@ class TestContextRoutes:
                 "content_text": "Full manuscript text",
                 "source_filename": "book-one.txt",
                 "refine_with_libby": True,
+                "timeline_relation": "future_timeline",
+                "chronology_label": "Occurs after Book Two",
+                "use_for_facts": False,
+                "use_for_style": True,
             },
         )
         assert ingest_response.status_code == 200
@@ -293,7 +342,17 @@ class TestContextRoutes:
         client = TestClient(app)
         captured = {}
 
-        def fake_queue_context_ingestion(book_id, title, content_text, source_filename=None, refine_with_libby=False):
+        def fake_queue_context_ingestion(
+            book_id,
+            title,
+            content_text,
+            source_filename=None,
+            refine_with_libby=False,
+            timeline_relation="current_book",
+            chronology_label=None,
+            use_for_facts=None,
+            use_for_style=None,
+        ):
             captured.update(
                 {
                     "book_id": book_id,
@@ -301,6 +360,10 @@ class TestContextRoutes:
                     "content_text": content_text,
                     "source_filename": source_filename,
                     "refine_with_libby": refine_with_libby,
+                    "timeline_relation": timeline_relation,
+                    "chronology_label": chronology_label,
+                    "use_for_facts": use_for_facts,
+                    "use_for_style": use_for_style,
                 }
             )
             return {"id": 99, "status": "queued", "progress_percent": 0}
@@ -309,7 +372,14 @@ class TestContextRoutes:
 
         response = client.post(
             "/api/context/42/ingest-file",
-            data={"title": "Uploaded Context", "refine_with_libby": "true"},
+            data={
+                "title": "Uploaded Context",
+                "refine_with_libby": "true",
+                "timeline_relation": "prior_timeline",
+                "chronology_label": "Happens before Book Two",
+                "use_for_facts": "true",
+                "use_for_style": "true",
+            },
             files={"upload": ("series-notes.txt", b"Hero notes\nVillain notes", "text/plain")},
         )
         assert response.status_code == 200
@@ -318,6 +388,10 @@ class TestContextRoutes:
         assert captured["source_filename"] == "series-notes.txt"
         assert "Hero notes" in captured["content_text"]
         assert captured["refine_with_libby"] is True
+        assert captured["timeline_relation"] == "prior_timeline"
+        assert captured["chronology_label"] == "Happens before Book Two"
+        assert captured["use_for_facts"] is True
+        assert captured["use_for_style"] is True
 
     def test_context_file_upload_rejects_unsupported_types(self):
         client = TestClient(app)
@@ -381,23 +455,17 @@ class TestLibbyWorkflowRoutes:
         monkeypatch.setattr(db_helpers, "get_session", test_session_local)
 
         monkeypatch.setattr(
-            context_engine,
-            "get_context_state",
+            libby_workflow_routes,
+            "build_runtime_context_packet",
             lambda book_id: {
-                "enabled": True,
-                "status": "ready",
-                "summary": {
-                    "summary_text": "Context summary",
-                    "characters": ["Jamal", "Mira"],
-                    "plot_threads": ["The station is unstable."],
-                    "world_details": ["Europa colony rules are tightening."],
-                    "style_notes": ["Propulsive pacing."],
-                    "source_document_count": 1,
-                    "source_word_count": 1600,
-                    "updated_at": datetime.now().isoformat(),
-                },
-                "latest_job": None,
-                "documents": [],
+                "summary_text": "Context summary",
+                "characters": ["Jamal", "Mira"],
+                "plot_threads": ["The station is unstable."],
+                "world_details": ["Europa colony rules are tightening."],
+                "style_notes": ["Propulsive pacing."],
+                "source_document_count": 1,
+                "source_word_count": 1600,
+                "timeline_guidance": {"future_context_suppressed": False},
             },
         )
 
@@ -485,6 +553,20 @@ class TestVoiceMappingRoutes:
         monkeypatch.setattr(db, "SessionLocal", test_session_local)
         monkeypatch.setattr(db_helpers, "get_session", test_session_local)
         monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+        monkeypatch.setattr(
+            voice_studio_routes,
+            "build_runtime_context_packet",
+            lambda book_id: {
+                "summary_text": "Voice context",
+                "characters": ["Mira", "Jamal"],
+                "plot_threads": ["The hatch is failing."],
+                "world_details": [],
+                "style_notes": ["Tight interior prose."],
+                "source_document_count": 1,
+                "source_word_count": 600,
+                "timeline_guidance": {"future_context_suppressed": False},
+            },
+        )
 
         client = TestClient(app)
 
@@ -746,6 +828,20 @@ class TestVoiceMappingRoutes:
         monkeypatch.setattr(db, "SessionLocal", test_session_local)
         monkeypatch.setattr(db_helpers, "get_session", test_session_local)
         monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+        monkeypatch.setattr(
+            voice_studio_routes,
+            "build_runtime_context_packet",
+            lambda book_id: {
+                "summary_text": "Voice context",
+                "characters": ["Mira", "Jamal"],
+                "plot_threads": ["The hatch is failing."],
+                "world_details": [],
+                "style_notes": ["Tight interior prose."],
+                "source_document_count": 1,
+                "source_word_count": 600,
+                "timeline_guidance": {"future_context_suppressed": False},
+            },
+        )
 
         async def fake_refine_voice_plan(**kwargs):
             assert kwargs["chapter_title"] == "Chapter 1"

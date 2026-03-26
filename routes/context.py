@@ -22,6 +22,10 @@ class ContextIngestRequest(BaseModel):
     content_text: str
     source_filename: str | None = None
     refine_with_libby: bool = False
+    timeline_relation: str = "current_book"
+    chronology_label: str | None = None
+    use_for_facts: bool | None = None
+    use_for_style: bool | None = None
 
 
 class ContextSummaryUpdateRequest(BaseModel):
@@ -79,6 +83,10 @@ def ingest_context(request: Request, book_id: int, body: ContextIngestRequest):
             content_text=body.content_text,
             source_filename=body.source_filename,
             refine_with_libby=body.refine_with_libby,
+            timeline_relation=body.timeline_relation,
+            chronology_label=body.chronology_label,
+            use_for_facts=body.use_for_facts,
+            use_for_style=body.use_for_style,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
@@ -90,6 +98,10 @@ async def ingest_context_file(
     book_id: int,
     title: str = Form(...),
     refine_with_libby: bool = Form(False),
+    timeline_relation: str = Form("current_book"),
+    chronology_label: str | None = Form(None),
+    use_for_facts: bool | None = Form(None),
+    use_for_style: bool | None = Form(None),
     upload: UploadFile = File(...),
 ):
     require_auth(request)
@@ -109,6 +121,10 @@ async def ingest_context_file(
             content_text=content_text,
             source_filename=source_filename,
             refine_with_libby=refine_with_libby,
+            timeline_relation=timeline_relation,
+            chronology_label=chronology_label,
+            use_for_facts=use_for_facts,
+            use_for_style=use_for_style,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))

@@ -17,6 +17,13 @@ import subprocess
 from datetime import datetime
 from typing import Optional
 
+from ai_prompt_contracts import (
+    chapter_generation_task,
+    context_refinement_task,
+    next_chapter_ideas_task,
+    shared_json_rules,
+    voice_plan_refinement_task,
+)
 from integrations import get_openclaw_settings
 
 logger = logging.getLogger(__name__)
@@ -169,10 +176,8 @@ class LibbyClient:
             "chapter_count": chapter_count,
             "current_book_title": current_book_title,
             "instructions": (
-                "Suggest exactly three distinct next-chapter scenarios for this book. "
-                "Each scenario should be plausible from the current continuity, concise, "
-                "and actionable for drafting. Return JSON with an ideas array. Each idea "
-                "should include title, direction, and rationale."
+                f"{next_chapter_ideas_task()} "
+                "Return JSON with an ideas array. Each idea should include title, direction, and rationale."
             ),
             "timestamp": datetime.now().isoformat(),
         }
@@ -222,10 +227,8 @@ class LibbyClient:
             "heuristic_summary": heuristic_summary,
             "source_excerpt": source_excerpt,
             "instructions": (
-                "Refine this context summary for a fiction book. Remove false character "
-                "names such as common capitalized words, merge duplicate or alias names, "
-                "keep only evidence-backed facts, and return concise continuity memory. "
-                "Do not invent details. Respond as JSON with keys: summary_text, "
+                f"{context_refinement_task()} "
+                "Respond as JSON with keys: summary_text, "
                 "characters, plot_threads, world_details, style_notes."
             ),
             "timestamp": datetime.now().isoformat(),
@@ -250,10 +253,8 @@ class LibbyClient:
             "voice_roster": voice_roster,
             "chapter_voice_map": chapter_voice_map,
             "instructions": (
-                "Refine narrator and dialogue speaker assignments for a fiction chapter. "
-                "Use the cleaned roster, preserve continuity, and choose a chapter-level "
-                "narration speaker if the chapter is effectively told through one character's perspective. "
-                "Do not rewrite or truncate any segment text. Return JSON with narrator_speaker and "
+                f"{voice_plan_refinement_task()} "
+                "Return JSON with narrator_speaker and "
                 "segment_updates. Each segment_updates item must include index, speaker, delivery_hint, and type."
             ),
             "timestamp": datetime.now().isoformat(),
@@ -344,15 +345,14 @@ class LibbyClient:
     def _build_openclaw_prompt(self, payload: dict) -> str:
         request_type = payload.get("type")
         shared_rules = (
-            "You are responding to Story Forge app traffic. "
-            "Return JSON only, with no markdown fences or extra commentary. "
-            "Do not invent facts beyond the supplied context."
+            f"You are responding to Story Forge app traffic. {shared_json_rules()}"
         )
 
         if request_type == SubmissionType.CONTEXT_REFINEMENT:
             return (
                 f"{shared_rules}\n\n"
                 "Task: refine context memory.\n"
+                f"{context_refinement_task()}\n"
                 "Output keys: summary_text, characters, plot_threads, world_details, style_notes.\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
@@ -360,6 +360,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: provide exactly 3 next chapter ideas.\n"
+                f"{next_chapter_ideas_task()}\n"
                 "Output shape: {\"ideas\":[{\"title\":\"...\",\"direction\":\"...\",\"rationale\":\"...\"}]}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
@@ -367,7 +368,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: draft one chapter from the supplied story direction.\n"
-                "Style constraints: do not use em dashes, and do not use triple hyphen scene breaks. Replace them with commas, periods, or plain sentence transitions.\n"
+                f"{chapter_generation_task()}\n"
                 "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
@@ -375,11 +376,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: refine a chapter voice plan.\n"
-                "Preserve the existing segment text exactly. Do not merge, split, or rewrite text.\n"
-                "Pick the best chapter-level narration speaker from the cleaned roster or Narrator.\n"
-                "For every segment, choose the most accurate speaker and delivery hint from: neutral, quiet, questioning, heightened, heavy.\n"
-                "Narration should default to neutral unless the prose clearly carries fear, grief, urgency, exhaustion, or a strong POV emotional charge.\n"
-                "Dialogue should use delivery hints that reflect the line and nearby narration, not just punctuation.\n"
+                f"{voice_plan_refinement_task()}\n"
                 "Output shape: {\"narrator_speaker\":\"...\",\"segment_updates\":[{\"index\":1,\"speaker\":\"...\",\"delivery_hint\":\"...\",\"type\":\"narration\"}]}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
@@ -393,7 +390,7 @@ class LibbyClient:
             return (
                 f"{shared_rules}\n\n"
                 "Task: rewrite the chapter based on the feedback.\n"
-                "Style constraints: do not use em dashes, and do not use triple hyphen scene breaks. Replace them with commas, periods, or plain sentence transitions.\n"
+                f"{chapter_generation_task()}\n"
                 "Output shape: {\"chapter_title\":\"...\",\"chapter_content\":\"...\"}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )

@@ -8,7 +8,7 @@ import os
 from functools import lru_cache
 
 from dotenv import load_dotenv
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Text, create_engine
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text, create_engine, inspect, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.sql import func
 
@@ -42,8 +42,13 @@ class ContextDocument(ContextBase):
     title = Column(String(255), nullable=False)
     source_type = Column(String(50), nullable=False, default="manuscript_text")
     source_filename = Column(String(255), nullable=True)
+    timeline_relation = Column(String(50), nullable=False, default="current_book")
+    chronology_label = Column(String(255), nullable=True)
+    use_for_facts = Column(Integer, nullable=False, default=1)
+    use_for_style = Column(Integer, nullable=False, default=1)
     content_text = Column(Text, nullable=False)
     word_count = Column(Integer, nullable=False, default=0)
+    extracted_summary = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -112,6 +117,7 @@ def init_context_db() -> bool:
     if engine is None:
         return False
     ContextBase.metadata.create_all(bind=engine)
+    _ensure_context_schema(engine)
     return True
 
 
@@ -125,3 +131,40 @@ def get_context_session() -> Session:
 def reset_context_db_state():
     get_context_engine.cache_clear()
     get_context_session_factory.cache_clear()
+
+
+def _ensure_context_schema(engine) -> None:
+    inspector = inspect(engine)
+    if "context_documents" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("context_documents")}
+    statements: list[str] = []
+
+    if "timeline_relation" not in columns:
+        statements.append(
+            "ALTER TABLE context_documents ADD COLUMN timeline_relation VARCHAR(50) NOT NULL DEFAULT 'current_book'"
+        )
+    if "chronology_label" not in columns:
+        statements.append(
+            "ALTER TABLE context_documents ADD COLUMN chronology_label VARCHAR(255)"
+        )
+    if "use_for_facts" not in columns:
+        statements.append(
+            "ALTER TABLE context_documents ADD COLUMN use_for_facts INTEGER NOT NULL DEFAULT 1"
+        )
+    if "use_for_style" not in columns:
+        statements.append(
+            "ALTER TABLE context_documents ADD COLUMN use_for_style INTEGER NOT NULL DEFAULT 1"
+        )
+    if "extracted_summary" not in columns:
+        statements.append(
+            "ALTER TABLE context_documents ADD COLUMN extracted_summary JSON NOT NULL DEFAULT '{}'"
+        )
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))

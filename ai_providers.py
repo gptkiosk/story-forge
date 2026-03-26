@@ -12,6 +12,13 @@ from typing import Any
 
 import httpx
 
+from ai_prompt_contracts import (
+    chapter_generation_task,
+    context_refinement_task,
+    next_chapter_ideas_task,
+    shared_json_rules,
+    voice_plan_refinement_task,
+)
 from integrations import get_ai_provider, get_openrouter_settings
 from libby import libby_client
 
@@ -170,8 +177,8 @@ class AIProviderManager:
     async def _openrouter_next_chapter_ideas(self, *, story_context: dict, chapter_count: int, current_book_title: str) -> dict:
         response = await self._chat_json(
             system_prompt=(
-                "You are a fiction continuity and plotting assistant. Return strict JSON only. "
-                "Preserve existing continuity, do not invent unsupported facts, and propose exactly three next chapter options."
+                f"You are a fiction continuity and plotting assistant. {shared_json_rules()} "
+                f"{next_chapter_ideas_task()}"
             ),
             user_prompt=(
                 f"Book title: {current_book_title}\n"
@@ -188,8 +195,8 @@ class AIProviderManager:
     async def _openrouter_generate_chapter(self, *, story_direction: str, story_context: dict, chapter_title: str | None = None) -> dict:
         response = await self._chat_json(
             system_prompt=(
-                "You draft fiction chapters from outline direction. Return strict JSON only. "
-                "Do not use em dashes or triple hyphen scene breaks. Preserve continuity, tone, and character logic."
+                f"You draft fiction chapters from outline direction. {shared_json_rules()} "
+                f"{chapter_generation_task()}"
             ),
             user_prompt=(
                 f"Requested chapter title: {chapter_title or ''}\n"
@@ -218,8 +225,8 @@ class AIProviderManager:
     ) -> dict:
         response = await self._chat_json(
             system_prompt=(
-                "You refine fiction continuity memory. Return strict JSON only. "
-                "Remove false character names, merge duplicates, keep only evidence-backed details, and stay concise."
+                f"You refine fiction continuity memory. {shared_json_rules()} "
+                f"{context_refinement_task()}"
             ),
             user_prompt=(
                 f"Book id: {book_id}\n"
@@ -245,11 +252,8 @@ class AIProviderManager:
     ) -> dict:
         response = await self._chat_json(
             system_prompt=(
-                "You refine voice assignments for a fiction audiobook workflow. Return strict JSON only. "
-                "Never rewrite segment text. Preserve continuity, use the cleaned character roster, and select "
-                "a chapter-level narration speaker when the chapter is strongly in one character's perspective. "
-                "For every segment, choose the best speaker and delivery hint. Narration should stay neutral by default, "
-                "but shift to quiet, questioning, heightened, or heavy when the prose clearly carries that emotional weight."
+                f"You refine voice assignments for a fiction audiobook workflow. {shared_json_rules()} "
+                f"{voice_plan_refinement_task()}"
             ),
             user_prompt=(
                 f"Chapter title: {chapter_title}\n"

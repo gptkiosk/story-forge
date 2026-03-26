@@ -37,6 +37,13 @@ COMMON_FALSE_NAMES = {
 
 LOW_SIGNAL_CHARACTER_TERMS = {term.lower() for term in STOPWORDS | COMMON_FALSE_NAMES}
 MAX_LIBBY_EXCERPT_CHARS = 12000
+TIMELINE_RELATIONS = {
+    "prior_timeline": "Earlier in the series timeline",
+    "current_book": "Current book timeline",
+    "future_timeline": "Later in the series timeline",
+    "timeless_reference": "Timeless or reference-only material",
+}
+FUTURE_TIMELINE_RELATIONS = {"future_timeline"}
 
 WORLD_KEYWORDS = (
     "city", "kingdom", "planet", "ship", "station", "school", "village",
@@ -149,6 +156,160 @@ def _build_summary(content_text: str) -> dict:
     }
 
 
+def _normalize_timeline_relation(value: str | None) -> str:
+    relation = (value or "").strip().lower()
+    if relation in TIMELINE_RELATIONS:
+        return relation
+    return "current_book"
+
+
+def _default_use_for_facts(timeline_relation: str) -> bool:
+    return timeline_relation not in FUTURE_TIMELINE_RELATIONS
+
+
+def _coerce_flag(value: object, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _normalize_summary_payload(payload: object, source_word_count: int = 0) -> dict:
+    if not isinstance(payload, dict):
+        payload = {}
+    fallback = {
+        "summary_text": "",
+        "characters": [],
+        "plot_threads": [],
+        "world_details": [],
+        "style_notes": [],
+        "source_word_count": source_word_count,
+    }
+    return _normalize_refined_payload(payload, fallback)
+
+
+def _unique_strings(values: list[str], limit: int | None = None) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value).strip()
+        if not item:
+            continue
+        lowered = item.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        cleaned.append(item)
+        if limit is not None and len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def _document_summary(document: ContextDocument) -> dict:
+    payload = _normalize_summary_payload(document.extracted_summary, document.word_count)
+    if not payload["summary_text"].strip():
+        payload = _build_summary(document.content_text or "")
+    payload["source_word_count"] = document.word_count
+    return payload
+
+
+def _document_uses_facts(document: ContextDocument) -> bool:
+    relation = _normalize_timeline_relation(getattr(document, "timeline_relation", None))
+    return _coerce_flag(getattr(document, "use_for_facts", None), _default_use_for_facts(relation))
+
+
+def _document_uses_style(document: ContextDocument) -> bool:
+    return _coerce_flag(getattr(document, "use_for_style", None), True)
+
+
+def _aggregate_document_summaries(documents: list[ContextDocument]) -> dict:
+    fact_documents = [document for document in documents if _document_uses_facts(document)]
+    style_documents = [document for document in documents if _document_uses_style(document)]
+    future_documents = [
+        document
+        for document in documents
+        if _normalize_timeline_relation(getattr(document, "timeline_relation", None)) in FUTURE_TIMELINE_RELATIONS
+    ]
+
+    summary_text_parts: list[str] = []
+    character_values: list[str] = []
+    plot_values: list[str] = []
+    world_values: list[str] = []
+    style_values: list[str] = []
+    total_fact_words = 0
+    total_style_words = 0
+
+    for document in fact_documents:
+        payload = _document_summary(document)
+        total_fact_words += int(payload.get("source_word_count") or document.word_count or 0)
+        summary_text = str(payload.get("summary_text") or "").strip()
+        if summary_text:
+            summary_text_parts.append(f"{document.title}: {summary_text}")
+        character_values.extend(payload.get("characters") or [])
+        plot_values.extend(payload.get("plot_threads") or [])
+        world_values.extend(payload.get("world_details") or [])
+
+    for document in style_documents:
+        payload = _document_summary(document)
+        total_style_words += int(payload.get("source_word_count") or document.word_count or 0)
+        style_values.extend(payload.get("style_notes") or [])
+
+    summary_text = "\n\n".join(summary_text_parts[:4]).strip()
+    if future_documents:
+        future_titles = ", ".join(document.title for document in future_documents[:4])
+        warning = (
+            "Future-timeline sources are available for style continuity only. "
+            f"Do not surface facts, reveals, or characters from: {future_titles}."
+        )
+        summary_text = f"{summary_text}\n\n{warning}".strip() if summary_text else warning
+
+    return {
+        "summary_text": summary_text,
+        "characters": _unique_strings(character_values, limit=24),
+        "plot_threads": _unique_strings(plot_values, limit=16),
+        "world_details": _unique_strings(world_values, limit=16),
+        "style_notes": _unique_strings(style_values, limit=16),
+        "source_word_count": total_fact_words,
+        "style_word_count": total_style_words,
+        "source_document_count": len(fact_documents),
+        "future_document_count": len(future_documents),
+        "future_document_titles": [document.title for document in future_documents[:8]],
+        "fact_document_titles": [document.title for document in fact_documents[:8]],
+        "style_document_titles": [document.title for document in style_documents[:8]],
+    }
+
+
+def _build_runtime_context_packet_from_documents(documents: list[ContextDocument]) -> dict:
+    aggregate = _aggregate_document_summaries(documents)
+    return {
+        "summary_text": aggregate["summary_text"],
+        "characters": aggregate["characters"],
+        "plot_threads": aggregate["plot_threads"],
+        "world_details": aggregate["world_details"],
+        "style_notes": aggregate["style_notes"],
+        "source_document_count": aggregate["source_document_count"],
+        "source_word_count": aggregate["source_word_count"],
+        "timeline_guidance": {
+            "fact_document_titles": aggregate["fact_document_titles"],
+            "style_document_titles": aggregate["style_document_titles"],
+            "future_document_titles": aggregate["future_document_titles"],
+            "future_context_suppressed": bool(aggregate["future_document_count"]),
+            "instruction": (
+                "Use only facts valid at the current book's timeline point. "
+                "Future-timeline documents may inform style continuity but must not surface spoilers, "
+                "characters, reveals, or world changes before they become true in this book."
+            ),
+        },
+    }
+
+
 def _sanitize_refined_list(values: object) -> list[str]:
     if not isinstance(values, list):
         return []
@@ -252,12 +413,34 @@ def _save_context_result(book_id: int, summary: dict):
     sync_character_voices(book_id)
 
 
+def _load_context_documents(session, book_id: int) -> list[ContextDocument]:
+    return (
+        session.query(ContextDocument)
+        .filter(ContextDocument.book_id == book_id)
+        .order_by(ContextDocument.updated_at.desc())
+        .all()
+    )
+
+
+def build_runtime_context_packet(book_id: int) -> dict:
+    if not context_db_enabled():
+        raise RuntimeError("Context database is not configured")
+
+    session = get_context_session()
+    try:
+        documents = _load_context_documents(session, book_id)
+        return _build_runtime_context_packet_from_documents(documents)
+    finally:
+        session.close()
+
+
 def get_context_state(book_id: int) -> dict:
     if not context_db_enabled():
         return {
             "enabled": False,
             "status": "disabled",
             "summary": None,
+            "runtime_context": None,
             "latest_job": None,
             "documents": [],
         }
@@ -268,9 +451,9 @@ def get_context_state(book_id: int) -> dict:
         latest_job = session.query(ContextIngestionJob).filter(
             ContextIngestionJob.book_id == book_id
         ).order_by(ContextIngestionJob.created_at.desc()).first()
-        documents = session.query(ContextDocument).filter(
-            ContextDocument.book_id == book_id
-        ).order_by(ContextDocument.updated_at.desc()).limit(5).all()
+        all_documents = _load_context_documents(session, book_id)
+        runtime_context = _build_runtime_context_packet_from_documents(all_documents)
+        documents = all_documents[:5]
 
         return {
             "enabled": True,
@@ -285,6 +468,7 @@ def get_context_state(book_id: int) -> dict:
                 "source_word_count": summary.source_word_count,
                 "updated_at": summary.updated_at.isoformat() if summary.updated_at else None,
             },
+            "runtime_context": runtime_context,
             "latest_job": None if latest_job is None else {
                 "id": latest_job.id,
                 "source_type": latest_job.source_type,
@@ -301,6 +485,11 @@ def get_context_state(book_id: int) -> dict:
                 "title": doc.title,
                 "source_type": doc.source_type,
                 "source_filename": doc.source_filename,
+                "timeline_relation": _normalize_timeline_relation(doc.timeline_relation),
+                "timeline_relation_label": TIMELINE_RELATIONS[_normalize_timeline_relation(doc.timeline_relation)],
+                "chronology_label": doc.chronology_label,
+                "use_for_facts": _document_uses_facts(doc),
+                "use_for_style": _document_uses_style(doc),
                 "word_count": doc.word_count,
                 "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
             } for doc in documents],
@@ -332,9 +521,17 @@ def queue_context_ingestion(
     content_text: str,
     source_filename: str | None = None,
     refine_with_libby: bool = False,
+    timeline_relation: str = "current_book",
+    chronology_label: str | None = None,
+    use_for_facts: bool | None = None,
+    use_for_style: bool | None = None,
 ) -> dict:
     if not context_db_enabled():
         raise RuntimeError("Context database is not configured")
+
+    normalized_timeline_relation = _normalize_timeline_relation(timeline_relation)
+    fact_flag = _coerce_flag(use_for_facts, _default_use_for_facts(normalized_timeline_relation))
+    style_flag = _coerce_flag(use_for_style, True)
 
     session = get_context_session()
     try:
@@ -356,7 +553,18 @@ def queue_context_ingestion(
 
     threading.Thread(
         target=_run_ingestion_with_options,
-        args=(job_id, book_id, title, source_filename, content_text, refine_with_libby),
+        args=(
+            job_id,
+            book_id,
+            title,
+            source_filename,
+            content_text,
+            refine_with_libby,
+            normalized_timeline_relation,
+            chronology_label,
+            fact_flag,
+            style_flag,
+        ),
         daemon=True,
     ).start()
 
@@ -376,12 +584,21 @@ def _run_ingestion_with_options(
     source_filename: str | None,
     content_text: str,
     refine_with_libby: bool,
+    timeline_relation: str,
+    chronology_label: str | None,
+    use_for_facts: bool,
+    use_for_style: bool,
 ):
     try:
         _set_job_progress(job_id, "processing", "Gaining context from manuscript...", 15)
         summary = _build_summary(content_text)
 
         _set_job_progress(job_id, "processing", "Keeping up with characters and plot threads...", 45)
+        libby_warning: str | None = None
+        if refine_with_libby:
+            _set_job_progress(job_id, "processing", "Libby is refining context memory...", 72)
+            summary, libby_warning = _refine_summary_with_libby(book_id, title, content_text, summary)
+
         session = get_context_session()
         try:
             document = ContextDocument(
@@ -389,20 +606,20 @@ def _run_ingestion_with_options(
                 title=title,
                 source_type="manuscript_text",
                 source_filename=source_filename,
+                timeline_relation=timeline_relation,
+                chronology_label=(chronology_label or "").strip() or None,
+                use_for_facts=1 if use_for_facts else 0,
+                use_for_style=1 if use_for_style else 0,
                 content_text=content_text,
                 word_count=len(content_text.split()),
+                extracted_summary=summary,
             )
             session.add(document)
             session.commit()
         finally:
             session.close()
 
-        libby_warning: str | None = None
-        if refine_with_libby:
-            _set_job_progress(job_id, "processing", "Libby is refining context memory...", 72)
-            summary, libby_warning = _refine_summary_with_libby(book_id, title, content_text, summary)
-
-        _save_context_result(book_id, summary)
+        _save_context_result(book_id, build_runtime_context_packet(book_id))
 
         completion_message = "Context ready for editing and export."
         if refine_with_libby:
@@ -473,12 +690,7 @@ def _run_context_refinement(job_id: int, book_id: int):
                 raise RuntimeError("No existing context source is available to refine yet")
 
             base_summary = {
-                "summary_text": existing_summary.summary_text or "",
-                "characters": existing_summary.characters or [],
-                "plot_threads": existing_summary.plot_threads or [],
-                "world_details": existing_summary.world_details or [],
-                "style_notes": existing_summary.style_notes or [],
-                "source_word_count": existing_summary.source_word_count or latest_document.word_count,
+                **_document_summary(latest_document),
             }
             source_title = latest_document.title
             content_text = latest_document.content_text
@@ -487,7 +699,18 @@ def _run_context_refinement(job_id: int, book_id: int):
 
         _set_job_progress(job_id, "processing", "Libby is deduplicating and refining context...", 70)
         refined_summary, libby_warning = _refine_summary_with_libby(book_id, source_title, content_text, base_summary)
-        _save_context_result(book_id, refined_summary)
+        session = get_context_session()
+        try:
+            latest_document = session.query(ContextDocument).filter(
+                ContextDocument.book_id == book_id
+            ).order_by(ContextDocument.updated_at.desc()).first()
+            if latest_document is None:
+                raise RuntimeError("No existing context source is available to refine yet")
+            latest_document.extracted_summary = refined_summary
+            session.commit()
+        finally:
+            session.close()
+        _save_context_result(book_id, build_runtime_context_packet(book_id))
         if libby_warning:
             _set_job_progress(job_id, "completed", f"Context kept in fast mode. Libby refine skipped: {libby_warning}", 100)
         else:
@@ -537,6 +760,7 @@ def export_context_summary(book_id: int) -> dict:
         "book_id": book_id,
         "exported_at": datetime.now().isoformat(),
         "summary": state["summary"],
+        "runtime_context": state.get("runtime_context"),
         "latest_job": state["latest_job"],
         "documents": state["documents"],
     }

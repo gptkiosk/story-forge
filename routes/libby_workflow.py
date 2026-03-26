@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from ai_providers import ai_provider_manager
-from context_engine import get_context_state
+from context_engine import build_runtime_context_packet
 from db_helpers import get_book_by_id, get_chapters_for_book
 from .auth_utils import require_auth
 
@@ -39,7 +39,7 @@ def _build_story_context(book_id: int) -> dict:
         raise HTTPException(status_code=404, detail="Book not found")
 
     chapters = get_chapters_for_book(book_id)
-    context_state = get_context_state(book_id)
+    runtime_context = build_runtime_context_packet(book_id)
     recent_chapters = chapters[-3:]
     return {
         "book": {
@@ -49,7 +49,7 @@ def _build_story_context(book_id: int) -> dict:
             "description": book.description,
             "status": book.status.value if hasattr(book.status, "value") else str(book.status),
         },
-        "context_summary": context_state.get("summary"),
+        "context_summary": runtime_context,
         "recent_chapters": [
             {
                 "id": chapter.id,
