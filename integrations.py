@@ -153,7 +153,9 @@ def update_tts_settings(payload: dict) -> dict:
     _save_raw_settings(next_settings)
 
     if "elevenlabs_api_key" in tts_settings:
-        _set_secret(ELEVENLABS_KEYCHAIN_KEY, tts_settings.get("elevenlabs_api_key"))
+        api_key = tts_settings.get("elevenlabs_api_key")
+        if isinstance(api_key, str) and api_key.strip():
+            _set_secret(ELEVENLABS_KEYCHAIN_KEY, api_key.strip())
 
     return get_settings()["tts"]
 

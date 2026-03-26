@@ -111,8 +111,8 @@ def save_tts_settings(request: Request, body: TTSSettingsRequest):
                 "elevenlabs_api_key": body.elevenlabs.api_key,
             }
         )
-        if body.elevenlabs.api_key:
-            tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider(api_key=body.elevenlabs.api_key)
+        if body.elevenlabs.api_key and body.elevenlabs.api_key.strip():
+            tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider(api_key=body.elevenlabs.api_key.strip())
         elif tts_module.tts_manager._elevenlabs is not None:
             tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider()
         return settings
