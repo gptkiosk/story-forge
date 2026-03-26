@@ -154,6 +154,15 @@ def _serialize_character_voice(character_voice: CharacterVoice, existing_entry: 
     }
 
 
+def _normalize_narrator_payload(entry: dict | None) -> dict:
+    entry = entry or {}
+    return {
+        "character_name": str(entry.get("character_name") or "Narrator").strip() or "Narrator",
+        "elevenlabs_voice_id": str(entry.get("elevenlabs_voice_id") or "").strip() or None,
+        "elevenlabs_voice_settings": _normalize_voice_settings(entry.get("elevenlabs_voice_settings")),
+    }
+
+
 def _write_json(path: Path, payload: dict):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -238,10 +247,7 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
                 _serialize_character_voice(row, existing_character_payloads.get(row.character_name.lower()))
                 for row in rows
             ],
-            "narrator": {
-                "character_name": str(existing_narrator.get("character_name") or "Narrator").strip() or "Narrator",
-                "elevenlabs_voice_settings": _normalize_voice_settings(existing_narrator.get("elevenlabs_voice_settings")),
-            },
+            "narrator": _normalize_narrator_payload(existing_narrator),
         }
         _write_json(get_book_voice_map_path(book_id), payload)
         return payload
@@ -290,10 +296,7 @@ def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict |
             "book_id": book_id,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "characters": cleaned_characters,
-            "narrator": {
-                "character_name": str((narrator or {}).get("character_name") or "Narrator").strip() or "Narrator",
-                "elevenlabs_voice_settings": _normalize_voice_settings((narrator or {}).get("elevenlabs_voice_settings")),
-            },
+            "narrator": _normalize_narrator_payload(narrator),
         }
         _write_json(get_book_voice_map_path(book_id), payload)
         return payload
@@ -588,11 +591,7 @@ def load_book_voice_map(book_id: int) -> dict:
     if payload is None:
         return sync_character_voices(book_id)
     payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
-    narrator = payload.get("narrator") or {}
-    payload["narrator"] = {
-        "character_name": str(narrator.get("character_name") or "Narrator").strip() or "Narrator",
-        "elevenlabs_voice_settings": _normalize_voice_settings(narrator.get("elevenlabs_voice_settings")),
-    }
+    payload["narrator"] = _normalize_narrator_payload(payload.get("narrator"))
     return payload
 
 

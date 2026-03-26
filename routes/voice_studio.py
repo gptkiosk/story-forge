@@ -56,6 +56,53 @@ class PreviewRequest(BaseModel):
     speed: float = 1.0
 
 
+def _resolve_voice_id_for_speaker(chapter_voice_map: dict, voice_roster: dict, speaker: str) -> str | None:
+    normalized = (speaker or "").strip()
+    if not normalized:
+        return None
+
+    if normalized == "Narrator":
+        return (voice_roster.get("narrator") or {}).get("elevenlabs_voice_id")
+
+    if normalized == (chapter_voice_map.get("narrator_speaker") or "").strip():
+        for character in voice_roster.get("characters") or []:
+            if (character.get("character_name") or "").strip() == normalized:
+                return character.get("elevenlabs_voice_id")
+        if normalized == "Narrator":
+            return (voice_roster.get("narrator") or {}).get("elevenlabs_voice_id")
+
+    for character in voice_roster.get("characters") or []:
+        if (character.get("character_name") or "").strip() == normalized:
+            return character.get("elevenlabs_voice_id")
+
+    return None
+
+
+def _build_segment_render_plan(chapter_voice_map: dict, voice_roster: dict) -> tuple[list[dict[str, Any]], list[str]]:
+    missing: list[str] = []
+    render_segments: list[dict[str, Any]] = []
+
+    for segment in chapter_voice_map.get("segments") or []:
+        text = str(segment.get("text") or "").strip()
+        if not text:
+            continue
+        speaker = str(segment.get("speaker") or "").strip() or "Narrator"
+        voice_id = _resolve_voice_id_for_speaker(chapter_voice_map, voice_roster, speaker)
+        if not voice_id:
+            missing.append(speaker)
+            continue
+        render_segments.append(
+            {
+                "speaker": speaker,
+                "voice_id": voice_id,
+                "text": text,
+                "delivery_hint": str(segment.get("delivery_hint") or "neutral").strip() or "neutral",
+            }
+        )
+
+    return render_segments, sorted({entry for entry in missing if entry})
+
+
 def _build_story_context(book_id: int) -> dict:
     book = get_book_by_id(book_id)
     if not book:
@@ -364,6 +411,107 @@ async def generate_speech(request: Request, body: GenerateRequest):
         session.commit()
         session.refresh(job)
         job_id = job.id
+    finally:
+        session.close()
+
+
+@router.post("/chapters/{chapter_id}/render")
+async def render_chapter_from_voice_plan(request: Request, chapter_id: int):
+    """Render chapter audio from the saved voice plan."""
+    require_auth(request)
+
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_voice_map = load_chapter_voice_map(
+        book_id=chapter.book_id,
+        chapter_id=chapter.id,
+        chapter_title=chapter.title,
+        chapter_content=chapter.content or "",
+    )
+    voice_roster = load_book_voice_map(chapter.book_id)
+    render_segments, missing_speakers = _build_segment_render_plan(chapter_voice_map, voice_roster)
+
+    if missing_speakers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Assign voices before rendering. Missing voice IDs for: {', '.join(missing_speakers)}"
+        )
+    if not render_segments:
+        raise HTTPException(status_code=400, detail="No renderable segments found in the saved chapter voice plan.")
+
+    manager = tts_module.tts_manager
+    tts_provider = tts_module.TTSProvider.ELEVENLABS
+    if not manager.is_provider_configured(tts_provider):
+        raise HTTPException(status_code=400, detail="ElevenLabs API key not configured in Integrations.")
+
+    session = get_session()
+    try:
+        job = TTSJob(
+            chapter_id=chapter.id,
+            provider=TTSProviderType.ELEVENLABS,
+            voice_id="voice-plan",
+            model=manager.get_provider(tts_provider).get_available_models()[0],
+            status=TTSJobStatus.PROCESSING,
+        )
+        session.add(job)
+        session.commit()
+        session.refresh(job)
+        job_id = job.id
+    finally:
+        session.close()
+
+    combined_audio = bytearray()
+    total_chars = 0
+    response_error = None
+    for segment in render_segments:
+        segment_response = await manager.generate_speech(
+            tts_module.TTSRequest(
+                text=segment["text"],
+                provider=tts_provider,
+                voice_id=segment["voice_id"],
+                model=manager.get_provider(tts_provider).get_available_models()[0],
+            )
+        )
+        if segment_response.error or not segment_response.audio_data:
+            response_error = segment_response.error or f"Failed to render segment for {segment['speaker']}"
+            break
+        combined_audio.extend(segment_response.audio_data)
+        total_chars += len(segment["text"])
+
+    session = get_session()
+    try:
+        job = session.query(TTSJob).filter(TTSJob.id == job_id).first()
+        if response_error:
+            job.status = TTSJobStatus.FAILED
+            job.error_message = response_error
+        else:
+            audio_path = tts_module.save_audio_file(
+                book_id=chapter.book_id,
+                chapter_id=chapter.id,
+                provider=tts_provider,
+                audio_data=bytes(combined_audio),
+            )
+            job.status = TTSJobStatus.COMPLETED
+            job.audio_path = audio_path
+            job.cost_tokens = total_chars
+            job.completed_at = datetime.now()
+        session.commit()
+        session.refresh(job)
+
+        return {
+            "id": job.id,
+            "chapter_id": job.chapter_id,
+            "provider": job.provider.value,
+            "voice_id": job.voice_id,
+            "status": job.status.value,
+            "audio_path": job.audio_path,
+            "audio_duration": job.audio_duration,
+            "error_message": job.error_message,
+            "created_at": str(job.created_at),
+            "completed_at": str(job.completed_at) if job.completed_at else None,
+        }
     finally:
         session.close()
 
