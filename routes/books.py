@@ -11,6 +11,8 @@ from db_helpers import (
     get_chapters_for_book, create_chapter, recalculate_book_word_count
 )
 from .auth_utils import require_auth
+from context_engine import delete_context_for_book
+from voice_mapping import delete_voice_maps_for_book
 
 ITEMS_PER_PAGE = 12
 
@@ -94,6 +96,9 @@ def delete_book_route(request: Request, book_id: int):
     success = delete_book(book_id)
     if not success:
         raise HTTPException(status_code=404, detail="Book not found")
+
+    delete_context_for_book(book_id)
+    delete_voice_maps_for_book(book_id)
 
     return {"status": "deleted"}
 

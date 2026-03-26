@@ -540,3 +540,17 @@ def export_context_summary(book_id: int) -> dict:
         "latest_job": state["latest_job"],
         "documents": state["documents"],
     }
+
+
+def delete_context_for_book(book_id: int) -> None:
+    if not context_db_enabled():
+        return
+
+    session = get_context_session()
+    try:
+        session.query(ContextIngestionJob).filter(ContextIngestionJob.book_id == book_id).delete()
+        session.query(ContextDocument).filter(ContextDocument.book_id == book_id).delete()
+        session.query(ContextSummary).filter(ContextSummary.book_id == book_id).delete()
+        session.commit()
+    finally:
+        session.close()

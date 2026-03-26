@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from pathlib import Path
@@ -583,3 +584,13 @@ def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, ch
     payload["coverage_ratio"] = round(similarity_ratio, 4)
     payload["unassigned_segment_count"] = 0
     return payload
+
+
+def delete_voice_maps_for_book(book_id: int) -> None:
+    book_dir = VOICE_MAP_ROOT / f"book_{book_id}"
+    try:
+        shutil.rmtree(book_dir)
+    except FileNotFoundError:
+        return
+    except OSError:
+        return

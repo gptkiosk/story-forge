@@ -289,6 +289,46 @@ class TestContextRoutes:
         assert export_payload["book_id"] == 42
         assert export_payload["summary"]["summary_text"] == "Revised summary"
 
+    def test_context_file_upload_ingest_accepts_supported_text_files(self, monkeypatch):
+        client = TestClient(app)
+        captured = {}
+
+        def fake_queue_context_ingestion(book_id, title, content_text, source_filename=None, refine_with_libby=False):
+            captured.update(
+                {
+                    "book_id": book_id,
+                    "title": title,
+                    "content_text": content_text,
+                    "source_filename": source_filename,
+                    "refine_with_libby": refine_with_libby,
+                }
+            )
+            return {"id": 99, "status": "queued", "progress_percent": 0}
+
+        monkeypatch.setattr(context_engine, "queue_context_ingestion", fake_queue_context_ingestion)
+
+        response = client.post(
+            "/api/context/42/ingest-file",
+            data={"title": "Uploaded Context", "refine_with_libby": "true"},
+            files={"upload": ("series-notes.txt", b"Hero notes\nVillain notes", "text/plain")},
+        )
+        assert response.status_code == 200
+        assert captured["book_id"] == 42
+        assert captured["title"] == "Uploaded Context"
+        assert captured["source_filename"] == "series-notes.txt"
+        assert "Hero notes" in captured["content_text"]
+        assert captured["refine_with_libby"] is True
+
+    def test_context_file_upload_rejects_unsupported_types(self):
+        client = TestClient(app)
+        response = client.post(
+            "/api/context/42/ingest-file",
+            data={"title": "Bad Upload"},
+            files={"upload": ("series-notes.pdf", b"%PDF-1.4", "application/pdf")},
+        )
+        assert response.status_code == 400
+        assert "Unsupported context file type" in response.json()["detail"]
+
 
 class TestIntegrationRoutes:
     def test_get_and_update_integrations(self, monkeypatch, tmp_path):
@@ -844,3 +884,34 @@ class TestVoiceMappingRoutes:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("audio/mpeg")
         assert response.content == b"fake-audio"
+
+
+class TestBookDeletionRoutes:
+    def test_delete_book_cleans_context_and_voice_maps(self, tmp_path, monkeypatch):
+        from routes import books as books_routes
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+
+        cleanup_calls = {"context": [], "voice": []}
+        monkeypatch.setattr(books_routes, "delete_context_for_book", lambda book_id: cleanup_calls["context"].append(book_id))
+        monkeypatch.setattr(books_routes, "delete_voice_maps_for_book", lambda book_id: cleanup_calls["voice"].append(book_id))
+
+        client = TestClient(app)
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Delete Me",
+                "author": "Tester",
+                "description": "Delete flow",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        response = client.delete(f"/api/books/{book_id}")
+        assert response.status_code == 200
+        assert cleanup_calls["context"] == [book_id]
+        assert cleanup_calls["voice"] == [book_id]
