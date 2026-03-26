@@ -211,16 +211,6 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
                 seen_candidates.add(lowered)
                 candidates.append(name)
 
-        active_candidate_names = {name.lower() for name in candidates}
-
-        for lowered, row in list(existing_map.items()):
-            if (
-                row.description == "Auto-detected for voice mapping."
-                and lowered not in active_candidate_names
-            ):
-                session.delete(row)
-                existing_map.pop(lowered, None)
-
         for name in candidates:
             lowered = name.lower()
             if lowered in existing_map:

@@ -900,6 +900,62 @@ class TestVoiceMappingRoutes:
         assert roster["narrator"]["character_name"] == "Dad"
         assert roster["narrator"]["elevenlabs_voice_settings"]["stability"] == 0.67
 
+    def test_book_voice_roster_accumulates_new_characters_across_chapters(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Accumulating Voice Book",
+                "author": "Tester",
+                "description": "Roster accumulation test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_one = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        ).json()
+        chapter_two = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 2", "order": 2},
+        ).json()
+
+        client.put(
+            f"/api/chapters/{chapter_one['id']}",
+            json={"content": '"Ready?" Dad asked. "Ready," Tommy said.'},
+        )
+        client.put(
+            f"/api/chapters/{chapter_two['id']}",
+            json={"content": '"Look out," Mira said. "I know," Dad answered.'},
+        )
+
+        first_roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert first_roster.status_code == 200
+        first_names = {entry['character_name'] for entry in first_roster.json()['characters']}
+        assert 'Dad' in first_names
+        assert 'Tommy' in first_names
+
+        rebuild_response = client.post(f"/api/voice-studio/chapters/{chapter_two['id']}/voice-map/rebuild")
+        assert rebuild_response.status_code == 200
+
+        roster_response = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert roster_response.status_code == 200
+        names = {entry['character_name'] for entry in roster_response.json()['characters']}
+        assert 'Dad' in names
+        assert 'Tommy' in names
+        assert 'Mira' in names
+
     def test_rebuild_chapter_plan_uses_cleaned_roster_and_infers_pov_narrator(self, tmp_path, monkeypatch):
         import voice_mapping
 
