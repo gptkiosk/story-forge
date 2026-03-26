@@ -19,16 +19,34 @@ import httpx
 # Keychain for storing API keys
 KEYCHAIN_SERVICE = "story-forge"
 
+def _looks_like_placeholder(value: str) -> bool:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return True
+    return normalized in {
+        "your-elevenlabs-api-key",
+        "your-minimax-api-key",
+        "your-api-key",
+        "changeme",
+        "change-me",
+        "replace-me",
+    }
+
 def _get_api_key(env_var: str, keychain_key: str) -> str:
     """Get API key from env var or keychain."""
-    key = os.environ.get(env_var, "")
-    if not key:
-        try:
-            import keyring
-            key = keyring.get_password(KEYCHAIN_SERVICE, keychain_key) or ""
-        except Exception:
-            pass
-    return key
+    env_key = os.environ.get(env_var, "")
+    if env_key and not _looks_like_placeholder(env_key):
+        return env_key
+
+    try:
+        import keyring
+        keychain_value = keyring.get_password(KEYCHAIN_SERVICE, keychain_key) or ""
+        if keychain_value and not _looks_like_placeholder(keychain_value):
+            return keychain_value
+    except Exception:
+        pass
+
+    return ""
 
 # MiniMax API
 MINIMAX_API_KEY = os.environ.get("MINIMAX_API_KEY", "")
