@@ -3,6 +3,7 @@ Backups routes for Story Forge API
 """
 import asyncio
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 import auth
 from .auth_utils import require_auth
 from db import DATABASE_PATH
@@ -11,6 +12,12 @@ from integrations import get_backup_provider, get_settings
 import google_drive_backup
 
 router = APIRouter()
+
+
+class BackupRestoreSelectionRequest(BaseModel):
+    components: list[str]
+    book_ids: list[int] = []
+    chapter_ids: list[int] = []
 
 
 def _serialize_backup(backup: dict) -> dict:
@@ -97,6 +104,68 @@ def restore_backup(request: Request, backup_id: str):
             result = backup_module.restore_local_backup(downloaded, DATABASE_PATH)
             return {"status": "restored", **result}
         result = backup_module.restore_backup(backup_id)
+        return {"status": "restored", **result}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{backup_id}/manifest")
+def get_backup_manifest(request: Request, backup_id: str):
+    require_auth(request)
+    _apply_backup_settings()
+    provider = get_backup_provider()
+    try:
+        if provider == "google_drive":
+            if not auth.has_google_drive_access():
+                raise HTTPException(status_code=403, detail="Google Drive access has not been granted yet.")
+            downloaded = asyncio.run(
+                google_drive_backup.download_backup_file(
+                    backup_id,
+                    backup_module.BACKUP_DIR / f"gdrive_manifest_{backup_id}.sfbackup",
+                )
+            )
+            result = backup_module.inspect_local_backup(downloaded)
+            return result["manifest"]
+        return backup_module.inspect_local_backup(backup_module.BACKUP_DIR / backup_id)["manifest"]
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{backup_id}/restore-selection")
+def restore_backup_selection(request: Request, backup_id: str, body: BackupRestoreSelectionRequest):
+    require_auth(request)
+    _apply_backup_settings()
+    provider = get_backup_provider()
+    try:
+        if provider == "google_drive":
+            if not auth.has_google_drive_access():
+                raise HTTPException(status_code=403, detail="Google Drive access has not been granted yet.")
+            downloaded = asyncio.run(
+                google_drive_backup.download_backup_file(
+                    backup_id,
+                    backup_module.BACKUP_DIR / f"gdrive_partial_{backup_id}.sfbackup",
+                )
+            )
+            result = backup_module.restore_backup_selection(
+                downloaded,
+                components=body.components,
+                target_db_path=DATABASE_PATH,
+                book_ids=body.book_ids,
+                chapter_ids=body.chapter_ids,
+            )
+            return {"status": "restored", **result}
+
+        result = backup_module.restore_backup_selection(
+            backup_module.BACKUP_DIR / backup_id,
+            components=body.components,
+            target_db_path=DATABASE_PATH,
+            book_ids=body.book_ids,
+            chapter_ids=body.chapter_ids,
+        )
         return {"status": "restored", **result}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Backup not found")

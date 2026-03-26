@@ -12,6 +12,7 @@ from db_helpers import (
 )
 from .auth_utils import require_auth
 from context_engine import delete_context_for_book
+from style_studio import delete_style_profile
 from voice_mapping import delete_voice_maps_for_book
 
 ITEMS_PER_PAGE = 12
@@ -99,6 +100,7 @@ def delete_book_route(request: Request, book_id: int):
 
     delete_context_for_book(book_id)
     delete_voice_maps_for_book(book_id)
+    delete_style_profile(book_id)
 
     return {"status": "deleted"}
 

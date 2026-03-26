@@ -16,6 +16,7 @@ import db_helpers
 import integrations
 import libby
 import tts as tts_module
+import backup as backup_module
 from db import Base
 from fastapi_app import app
 from routes import libby_workflow as libby_workflow_routes
@@ -446,6 +447,70 @@ class TestIntegrationRoutes:
         )
         assert backup_update.status_code == 200
         assert backup_update.json()["provider"] == "local"
+
+
+class TestStyleStudioRoutes:
+    def test_get_and_update_style_studio(self, tmp_path, monkeypatch):
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Style Studio Book",
+                "author": "Tester",
+                "description": "Style route test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        get_response = client.get(f"/api/books/{book_id}/style-studio")
+        assert get_response.status_code == 200
+        assert get_response.json()["book_id"] == book_id
+
+        update_response = client.put(
+            f"/api/books/{book_id}/style-studio",
+            json={
+                "style_template_id": "luminous-minimalist",
+                "genre_template_id": "space-opera",
+                "style_markdown": "# Style DNA\n\n- Keep the prose clean.",
+                "genre_markdown": "# Genre Tropes\n\n- Blend awe with danger.",
+            },
+        )
+        assert update_response.status_code == 200
+        payload = update_response.json()
+        assert payload["style_template_id"] == "luminous-minimalist"
+        assert payload["genre_template_id"] == "space-opera"
+        assert "Keep the prose clean" in payload["combined_guidance"]
+
+
+class TestBackupManifestRoutes:
+    def test_get_backup_manifest(self, monkeypatch):
+        expected = {
+            "components": {
+                "books": {"count": 1, "books": [{"id": 4, "title": "Manifest Book"}]},
+                "chapters": {"count": 2, "chapters": [{"id": 7, "book_id": 4, "title": "Chapter 1", "order": 1}]},
+                "voice_rosters": {"count": 1, "book_ids": [4]},
+                "style_studio": {"count": 1, "book_ids": [4]},
+                "settings": {"has_user_preferences": True, "has_integrations": True},
+            }
+        }
+
+        monkeypatch.setattr(
+            backup_module,
+            "inspect_local_backup",
+            lambda path: {"manifest": expected, "metadata": {"created_at": datetime.now().isoformat()}},
+        )
+
+        client = TestClient(app)
+        response = client.get("/api/backups/example.sfbackup/manifest")
+        assert response.status_code == 200
+        assert response.json()["components"]["books"]["books"][0]["title"] == "Manifest Book"
 
 
 class TestLibbyWorkflowRoutes:

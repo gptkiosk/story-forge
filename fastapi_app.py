@@ -17,6 +17,7 @@ from routes.libby_workflow import router as libby_workflow_router
 from routes.dashboard import router as dashboard_router
 from routes.manuscript import router as manuscript_router
 from routes.integrations import router as integrations_router
+from routes.style_studio import router as style_studio_router
 
 app = FastAPI(
     title="Story Forge API",
@@ -74,6 +75,7 @@ app.include_router(libby_workflow_router, prefix="/api", tags=["libby-workflow"]
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(manuscript_router, prefix="/api/manuscript", tags=["manuscript"])
 app.include_router(integrations_router, prefix="/api/integrations", tags=["integrations"])
+app.include_router(style_studio_router, prefix="/api/books", tags=["style-studio"])
 
 
 @app.on_event("startup")

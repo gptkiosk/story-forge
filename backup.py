@@ -11,7 +11,9 @@ import gzip
 import hashlib
 import logging
 import os
+import sqlite3
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -44,6 +46,12 @@ MAX_AGE_DAYS = 30
 # USB SSD Configuration
 USB_SSD_MOUNT = Path(os.environ.get("STORY_FORGE_USB_PATH", "/Volumes/xtra-ssd"))
 USB_SSD_BACKUP_DIR = USB_SSD_MOUNT / "story-forge-backups"
+
+SIDECAR_RELATIVE_PATHS = [
+    Path("voice_maps"),
+    Path("style_studio"),
+    Path("integrations.json"),
+]
 
 
 # =============================================================================
@@ -105,6 +113,345 @@ class BackupEncryptor:
 backup_encryptor = BackupEncryptor()
 
 
+def _iter_sidecar_files() -> list[Path]:
+    files: list[Path] = []
+    for relative_path in SIDECAR_RELATIVE_PATHS:
+        absolute_path = DATA_DIR / relative_path
+        if absolute_path.is_file():
+            files.append(absolute_path)
+        elif absolute_path.is_dir():
+            files.extend([path for path in absolute_path.rglob("*") if path.is_file()])
+    return files
+
+
+def _relative_to_data(path: Path) -> str:
+    return path.relative_to(DATA_DIR).as_posix()
+
+
+def _extract_sidecar_book_id(relative_path: str) -> int | None:
+    parts = relative_path.split("/")
+    for part in parts:
+        if part.startswith("book_"):
+            try:
+                return int(part.split("_", 1)[1])
+            except Exception:
+                return None
+    return None
+
+
+def _collect_sidecars() -> dict[str, str]:
+    return {
+        _relative_to_data(path): path.read_bytes().hex()
+        for path in _iter_sidecar_files()
+    }
+
+
+def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] | None = None) -> dict:
+    manifest = {
+        "components": {
+            "books": {"count": 0, "books": []},
+            "chapters": {"count": 0, "chapters": []},
+            "voice_rosters": {"count": 0, "book_ids": []},
+            "style_studio": {"count": 0, "book_ids": []},
+            "settings": {"has_user_preferences": False, "has_integrations": False},
+        }
+    }
+
+    connection = sqlite3.connect(str(source_db_path))
+    try:
+        books = connection.execute(
+            "SELECT id, title FROM books ORDER BY id"
+        ).fetchall()
+        manifest["components"]["books"] = {
+            "count": len(books),
+            "books": [{"id": row[0], "title": row[1]} for row in books[:100]],
+        }
+
+        chapters = connection.execute(
+            "SELECT id, book_id, title, \"order\" FROM chapters ORDER BY book_id, \"order\", id"
+        ).fetchall()
+        manifest["components"]["chapters"] = {
+            "count": len(chapters),
+            "chapters": [
+                {"id": row[0], "book_id": row[1], "title": row[2], "order": row[3]}
+                for row in chapters[:200]
+            ],
+        }
+
+        table_names = {
+            row[0] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        voice_book_ids = set()
+        style_book_ids = set()
+        if "character_voices" in table_names:
+            voice_book_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT book_id FROM character_voices ORDER BY book_id"
+                ).fetchall()
+            }
+        if "book_style_profiles" in table_names:
+            style_book_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT book_id FROM book_style_profiles ORDER BY book_id"
+                ).fetchall()
+            }
+
+        user_preferences_count = (
+            connection.execute("SELECT COUNT(*) FROM user_preferences").fetchone()[0]
+            if "user_preferences" in table_names
+            else 0
+        )
+        manifest["components"]["settings"]["has_user_preferences"] = user_preferences_count > 0
+    finally:
+        connection.close()
+
+    for relative_path in (sidecars or {}).keys():
+        book_id = _extract_sidecar_book_id(relative_path)
+        if relative_path.startswith("voice_maps/") and book_id is not None:
+            voice_book_ids.add(book_id)
+        if relative_path.startswith("style_studio/") and book_id is not None:
+            style_book_ids.add(book_id)
+        if relative_path == "integrations.json":
+            manifest["components"]["settings"]["has_integrations"] = True
+
+    manifest["components"]["voice_rosters"] = {
+        "count": len(voice_book_ids),
+        "book_ids": sorted(voice_book_ids),
+    }
+    manifest["components"]["style_studio"] = {
+        "count": len(style_book_ids),
+        "book_ids": sorted(style_book_ids),
+    }
+    return manifest
+
+
+def _read_backup_archive(backup_path: str | Path) -> tuple[dict, dict]:
+    backup_file = Path(backup_path)
+    with gzip.GzipFile(backup_file, "rb") as gz:
+        metadata_len_bytes = gz.read(4)
+        if len(metadata_len_bytes) < 4:
+            raise ValueError("Invalid backup file: missing metadata length")
+        metadata_len = int.from_bytes(metadata_len_bytes, byteorder="big")
+        metadata_json = gz.read(metadata_len)
+        metadata = json.loads(metadata_json.decode("utf-8"))
+        encrypted_data = gz.read()
+
+    decrypted = backup_encryptor.decrypt(encrypted_data)
+    archive = json.loads(decrypted.decode("utf-8"))
+    return metadata, archive
+
+
+def _restore_sidecars(sidecars: dict[str, str], components: set[str] | None = None, book_ids: set[int] | None = None) -> None:
+    components = components or {"voice_rosters", "style_studio", "settings"}
+    if not book_ids:
+        if "voice_rosters" in components:
+            shutil.rmtree(DATA_DIR / "voice_maps", ignore_errors=True)
+        if "style_studio" in components:
+            shutil.rmtree(DATA_DIR / "style_studio", ignore_errors=True)
+        if "settings" in components:
+            try:
+                (DATA_DIR / "integrations.json").unlink()
+            except FileNotFoundError:
+                pass
+    if "voice_rosters" in components and book_ids:
+        for book_id in book_ids:
+            shutil.rmtree(DATA_DIR / "voice_maps" / f"book_{book_id}", ignore_errors=True)
+    if "style_studio" in components and book_ids:
+        for book_id in book_ids:
+            shutil.rmtree(DATA_DIR / "style_studio" / f"book_{book_id}", ignore_errors=True)
+
+    for relative_path, hex_content in (sidecars or {}).items():
+        book_id = _extract_sidecar_book_id(relative_path)
+        if relative_path.startswith("voice_maps/"):
+            if "voice_rosters" not in components:
+                continue
+            if book_ids and book_id is not None and book_id not in book_ids:
+                continue
+        elif relative_path.startswith("style_studio/"):
+            if "style_studio" not in components:
+                continue
+            if book_ids and book_id is not None and book_id not in book_ids:
+                continue
+        elif relative_path == "integrations.json":
+            if "settings" not in components:
+                continue
+        else:
+            continue
+
+        target = DATA_DIR / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(bytes.fromhex(hex_content))
+
+
+def inspect_local_backup(backup_path: str | Path) -> dict:
+    metadata, archive = _read_backup_archive(backup_path)
+    if metadata.get("manifest"):
+        manifest = metadata["manifest"]
+    else:
+        source_db_path = _materialize_archive_db(archive)
+        try:
+            manifest = _build_backup_manifest(
+                source_db_path=source_db_path,
+                sidecars=archive.get("sidecars") or {},
+            )
+        finally:
+            shutil.rmtree(source_db_path.parent, ignore_errors=True)
+    return {
+        "metadata": metadata,
+        "manifest": manifest,
+    }
+
+
+def _materialize_archive_db(archive: dict) -> Path:
+    temp_dir = Path(tempfile.mkdtemp(prefix="story_forge_backup_"))
+    db_path = temp_dir / "backup.db"
+    db_path.write_bytes(bytes.fromhex(archive["main_db"]))
+    wal_hex = archive.get("wal") or ""
+    if wal_hex:
+        Path(str(db_path) + "-wal").write_bytes(bytes.fromhex(wal_hex))
+    return db_path
+
+
+def _copy_selected_rows(source_conn: sqlite3.Connection, target_conn: sqlite3.Connection, table: str, where_clause: str = "", params: tuple = ()) -> None:
+    source_exists = source_conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    ).fetchone()
+    target_exists = target_conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    ).fetchone()
+    if not source_exists or not target_exists:
+        return
+    rows = source_conn.execute(f"SELECT * FROM {table} {where_clause}", params).fetchall()
+    if not rows:
+        return
+    column_info = source_conn.execute(f"PRAGMA table_info({table})").fetchall()
+    columns = [info[1] for info in column_info]
+    placeholders = ", ".join(["?"] * len(columns))
+    quoted_columns = ", ".join(columns)
+    target_conn.executemany(
+        f"INSERT OR REPLACE INTO {table} ({quoted_columns}) VALUES ({placeholders})",
+        rows,
+    )
+
+
+def restore_backup_selection(
+    backup_path: str | Path,
+    *,
+    components: list[str],
+    target_db_path: str | Path,
+    book_ids: list[int] | None = None,
+    chapter_ids: list[int] | None = None,
+) -> dict:
+    requested = set(components)
+    allowed = {"books", "chapters", "voice_rosters", "style_studio", "settings"}
+    if not requested or not requested.issubset(allowed):
+        raise RuntimeError("Invalid restore component selection.")
+
+    selected_book_ids = set(book_ids or [])
+    selected_chapter_ids = set(chapter_ids or [])
+    metadata, archive = _read_backup_archive(backup_path)
+    source_db_path = _materialize_archive_db(archive)
+    source_conn = sqlite3.connect(str(source_db_path))
+    target_conn = sqlite3.connect(str(target_db_path))
+    try:
+        target_conn.execute("PRAGMA foreign_keys=OFF")
+
+        if "books" in requested:
+            if selected_book_ids:
+                placeholders = ", ".join(["?"] * len(selected_book_ids))
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "books",
+                    f"WHERE id IN ({placeholders})",
+                    tuple(sorted(selected_book_ids)),
+                )
+            else:
+                _copy_selected_rows(source_conn, target_conn, "books")
+
+        if "chapters" in requested:
+            if selected_chapter_ids:
+                placeholders = ", ".join(["?"] * len(selected_chapter_ids))
+                chapter_rows = source_conn.execute(
+                    f'SELECT book_id FROM chapters WHERE id IN ({placeholders})',
+                    tuple(sorted(selected_chapter_ids)),
+                ).fetchall()
+                chapter_book_ids = {row[0] for row in chapter_rows}
+                missing_books = chapter_book_ids - selected_book_ids
+                if missing_books and "books" not in requested:
+                    raise RuntimeError("Restoring chapters independently requires their parent books to already exist or be selected too.")
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "chapters",
+                    f'WHERE id IN ({placeholders})',
+                    tuple(sorted(selected_chapter_ids)),
+                )
+            elif selected_book_ids:
+                placeholders = ", ".join(["?"] * len(selected_book_ids))
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "chapters",
+                    f"WHERE book_id IN ({placeholders})",
+                    tuple(sorted(selected_book_ids)),
+                )
+            else:
+                _copy_selected_rows(source_conn, target_conn, "chapters")
+
+        if "voice_rosters" in requested:
+            if selected_book_ids:
+                placeholders = ", ".join(["?"] * len(selected_book_ids))
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "character_voices",
+                    f"WHERE book_id IN ({placeholders})",
+                    tuple(sorted(selected_book_ids)),
+                )
+            else:
+                _copy_selected_rows(source_conn, target_conn, "character_voices")
+
+        if "style_studio" in requested:
+            if selected_book_ids:
+                placeholders = ", ".join(["?"] * len(selected_book_ids))
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "book_style_profiles",
+                    f"WHERE book_id IN ({placeholders})",
+                    tuple(sorted(selected_book_ids)),
+                )
+            else:
+                _copy_selected_rows(source_conn, target_conn, "book_style_profiles")
+
+        if "settings" in requested:
+            _copy_selected_rows(source_conn, target_conn, "users")
+            _copy_selected_rows(source_conn, target_conn, "user_preferences")
+
+        target_conn.commit()
+    finally:
+        source_conn.close()
+        target_conn.close()
+        shutil.rmtree(source_db_path.parent, ignore_errors=True)
+
+    _restore_sidecars(archive.get("sidecars") or {}, requested, selected_book_ids or None)
+
+    return {
+        "restored_at": datetime.now().isoformat(),
+        "backup_created_at": metadata.get("created_at"),
+        "components": sorted(requested),
+        "book_ids": sorted(selected_book_ids),
+        "chapter_ids": sorted(selected_chapter_ids),
+    }
+
+
 # =============================================================================
 # Local Backup Operations
 # =============================================================================
@@ -131,6 +478,8 @@ def create_local_backup(source_db_path: str | Path, book_title: str = "story_for
     backup_filename = f"{sanitized_title}_{timestamp}.sfbackup"
     backup_path = BACKUP_DIR / backup_filename
 
+    sidecars = _collect_sidecars()
+
     # Create backup metadata
     metadata = {
         "created_at": datetime.now().isoformat(),
@@ -140,6 +489,7 @@ def create_local_backup(source_db_path: str | Path, book_title: str = "story_for
         "version": "1.0",
         "backup_type": "local",
     }
+    metadata["manifest"] = _build_backup_manifest(source_path, sidecars)
 
     try:
         # Create a checkpoint first to ensure all WAL data is in main db
@@ -164,6 +514,7 @@ def create_local_backup(source_db_path: str | Path, book_title: str = "story_for
             "main_db": db_data,
             "wal": wal_data,
             "metadata": metadata,
+            "sidecars": sidecars,
         }
 
         # Serialize metadata as JSON
@@ -265,6 +616,8 @@ def restore_local_backup(backup_path: str | Path, target_db_path: str | Path) ->
         if wal_hex:
             wal_path = Path(str(target_path) + "-wal")
             wal_path.write_bytes(bytes.fromhex(wal_hex))
+
+        _restore_sidecars(archive.get("sidecars") or {})
 
         restore_info = {
             "restored_at": datetime.now().isoformat(),

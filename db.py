@@ -367,6 +367,31 @@ class UserPreference(Base):
     user = relationship("User", back_populates="preferences")
 
 
+class BookStyleProfile(Base):
+    """Book-level style and genre studio profile."""
+
+    __tablename__ = "book_style_profiles"
+
+    id = Column(Integer, primary_key=True)
+    book_id = Column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    style_template_id = Column(String(100), nullable=True)
+    genre_template_id = Column(String(100), nullable=True)
+    style_template_name = Column(String(255), nullable=True)
+    genre_template_name = Column(String(255), nullable=True)
+    style_markdown = Column(Text, nullable=False, default="")
+    genre_markdown = Column(Text, nullable=False, default="")
+    combined_guidance = Column(Text, nullable=False, default="")
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
 # =============================================================================
 # Session Management
 # =============================================================================

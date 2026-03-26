@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from ai_providers import ai_provider_manager
 from context_engine import build_runtime_context_packet
 from db_helpers import get_book_by_id, get_chapters_for_book
+from style_studio import build_style_context
 from .auth_utils import require_auth
 
 router = APIRouter()
@@ -50,6 +51,7 @@ def _build_story_context(book_id: int) -> dict:
             "status": book.status.value if hasattr(book.status, "value") else str(book.status),
         },
         "context_summary": runtime_context,
+        "style_studio": build_style_context(book_id),
         "recent_chapters": [
             {
                 "id": chapter.id,

@@ -13,6 +13,7 @@ from ai_providers import ai_provider_manager
 from context_engine import build_runtime_context_packet
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
+from style_studio import build_style_context
 from .auth_utils import require_auth
 
 import tts as tts_module
@@ -67,6 +68,7 @@ def _build_story_context(book_id: int) -> dict:
             "status": book.status.value if hasattr(book.status, "value") else str(book.status),
         },
         "context_summary": build_runtime_context_packet(book_id),
+        "style_studio": build_style_context(book_id),
     }
 
 
