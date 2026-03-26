@@ -824,6 +824,80 @@ class TestVoiceMappingRoutes:
         assert saved_chapter_map["narrator_speaker"] == "Narrator"
         assert saved_chapter_map["coverage_ratio"] >= 0.96
 
+    def test_voice_roster_metadata_survives_sync_rebuild(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Roster Persistence Book",
+                "author": "Tester",
+                "description": "Roster persistence test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        chapter_response = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        )
+        chapter_id = chapter_response.json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={"content": '"Ready?" Dad asked. "Ready," Tommy said.'},
+        )
+
+        save_roster_response = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [
+                    {
+                        "character_name": "Dad",
+                        "voice_name": "Roger",
+                        "gender": "Laid-Back, Casual, Resonant",
+                        "elevenlabs_voice_id": "CwhRBWXzGAHq8TQ4Fs17",
+                        "description": "Warm father voice",
+                        "elevenlabs_voice_settings": {"speed": 0.93, "stability": 0.82},
+                    },
+                    {
+                        "character_name": "Tommy",
+                        "voice_name": "Young Lead",
+                        "elevenlabs_voice_id": "IKne3meq5aSn9XLyUdCD",
+                        "elevenlabs_voice_settings": {"speed": 1.03},
+                    },
+                ],
+                "narrator": {
+                    "character_name": "Dad",
+                    "elevenlabs_voice_settings": {"stability": 0.67, "speed": 0.97},
+                },
+            },
+        )
+        assert save_roster_response.status_code == 200
+
+        rebuild_response = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/rebuild")
+        assert rebuild_response.status_code == 200
+
+        roster_response = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert roster_response.status_code == 200
+        roster = roster_response.json()
+        dad = next(entry for entry in roster["characters"] if entry["character_name"] == "Dad")
+        assert dad["voice_name"] == "Roger"
+        assert dad["gender"] == "Laid-Back, Casual, Resonant"
+        assert dad["elevenlabs_voice_id"] == "CwhRBWXzGAHq8TQ4Fs17"
+        assert dad["elevenlabs_voice_settings"]["speed"] == 0.93
+        assert roster["narrator"]["character_name"] == "Dad"
+        assert roster["narrator"]["elevenlabs_voice_settings"]["stability"] == 0.67
+
     def test_rebuild_chapter_plan_uses_cleaned_roster_and_infers_pov_narrator(self, tmp_path, monkeypatch):
         import voice_mapping
 

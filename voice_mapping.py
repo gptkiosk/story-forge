@@ -142,7 +142,7 @@ def _normalize_character_payload(entry: dict) -> dict:
     }
 
 
-def _serialize_character_voice(character_voice: CharacterVoice) -> dict:
+def _serialize_character_voice(character_voice: CharacterVoice, existing_entry: dict | None = None) -> dict:
     return {
         "character_name": character_voice.character_name,
         "voice_name": character_voice.voice_name,
@@ -150,7 +150,7 @@ def _serialize_character_voice(character_voice: CharacterVoice) -> dict:
         "description": character_voice.description,
         "minimax_voice_id": character_voice.minimax_voice_id,
         "elevenlabs_voice_id": character_voice.elevenlabs_voice_id,
-        "elevenlabs_voice_settings": _normalize_voice_settings(None),
+        "elevenlabs_voice_settings": _normalize_voice_settings((existing_entry or {}).get("elevenlabs_voice_settings")),
     }
 
 
@@ -174,6 +174,13 @@ def _read_json(path: Path) -> dict | None:
 def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
     session = get_session()
     try:
+        existing_payload = _read_json(get_book_voice_map_path(book_id)) or {}
+        existing_character_payloads = {
+            str(entry.get("character_name") or "").strip().lower(): entry
+            for entry in existing_payload.get("characters") or []
+            if str(entry.get("character_name") or "").strip()
+        }
+        existing_narrator = existing_payload.get("narrator") or {}
         existing = session.query(CharacterVoice).filter(CharacterVoice.book_id == book_id).all()
         existing_map = {row.character_name.lower(): row for row in existing}
 
@@ -227,10 +234,13 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
         payload = {
             "book_id": book_id,
             "updated_at": datetime.now(timezone.utc).isoformat(),
-            "characters": [_serialize_character_voice(row) for row in rows],
+            "characters": [
+                _serialize_character_voice(row, existing_character_payloads.get(row.character_name.lower()))
+                for row in rows
+            ],
             "narrator": {
-                "character_name": "Narrator",
-                "elevenlabs_voice_settings": _normalize_voice_settings(None),
+                "character_name": str(existing_narrator.get("character_name") or "Narrator").strip() or "Narrator",
+                "elevenlabs_voice_settings": _normalize_voice_settings(existing_narrator.get("elevenlabs_voice_settings")),
             },
         }
         _write_json(get_book_voice_map_path(book_id), payload)
