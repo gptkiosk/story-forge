@@ -4,14 +4,14 @@ Voice Studio / TTS routes for Story Forge API
 from datetime import datetime
 from io import BytesIO
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Any, Optional
 from pydantic import BaseModel
 import asyncio
 import json
 from ai_providers import ai_provider_manager
 from context_engine import build_runtime_context_packet
-from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_tts_job, get_tts_jobs, delete_tts_job
+from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_chapters_for_book, get_tts_job, get_tts_jobs, delete_tts_job
 from db import get_session, TTSJob, TTSJobStatus, TTSProviderType
 from style_studio import build_style_context
 from integrations import get_elevenlabs_api_key
@@ -395,7 +395,7 @@ async def generate_speech(request: Request, body: GenerateRequest):
     if not manager.is_provider_configured(tts_provider):
         raise HTTPException(
             status_code=400,
-            detail=f"{body.provider} API key not configured. Set {body.provider.upper()}_API_KEY environment variable."
+            detail=f"{body.provider} API key not configured. Add it in Integrations.",
         )
 
     session = get_session()
@@ -413,6 +413,100 @@ async def generate_speech(request: Request, body: GenerateRequest):
         job_id = job.id
     finally:
         session.close()
+
+    tts_request = tts_module.TTSRequest(
+        text=chapter.content,
+        provider=tts_provider,
+        voice_id=body.voice_id,
+        model=body.model or manager.get_provider(tts_provider).get_available_models()[0],
+    )
+    response = await manager.generate_speech(tts_request)
+
+    session = get_session()
+    try:
+        job = session.query(TTSJob).filter(TTSJob.id == job_id).first()
+        if response.error:
+            job.status = TTSJobStatus.FAILED
+            job.error_message = response.error
+        else:
+            audio_path = tts_module.save_audio_file(
+                book_id=chapter.book_id,
+                chapter_id=chapter.id,
+                provider=tts_provider,
+                audio_data=response.audio_data,
+            )
+            job.status = TTSJobStatus.COMPLETED
+            job.audio_path = audio_path
+            job.audio_duration = response.duration_seconds
+            job.cost_tokens = response.cost_tokens
+            job.completed_at = datetime.now()
+
+        session.commit()
+        session.refresh(job)
+
+        return {
+            "id": job.id,
+            "chapter_id": job.chapter_id,
+            "provider": job.provider.value,
+            "voice_id": job.voice_id,
+            "status": job.status.value,
+            "audio_path": job.audio_path,
+            "audio_duration": job.audio_duration,
+            "error_message": job.error_message,
+            "created_at": str(job.created_at),
+            "completed_at": str(job.completed_at) if job.completed_at else None,
+        }
+    finally:
+        session.close()
+
+
+def _serialize_job(job: TTSJob) -> dict[str, Any]:
+    return {
+        "id": job.id,
+        "chapter_id": job.chapter_id,
+        "provider": job.provider.value if hasattr(job.provider, "value") else str(job.provider),
+        "voice_id": job.voice_id,
+        "status": job.status.value if hasattr(job.status, "value") else str(job.status),
+        "audio_path": job.audio_path,
+        "audio_duration": job.audio_duration,
+        "error_message": job.error_message,
+        "created_at": str(job.created_at),
+        "completed_at": str(job.completed_at) if job.completed_at else None,
+    }
+
+
+def _get_audiobook_path(book_id: int, provider: tts_module.TTSProvider, format: str = "mp3"):
+    filepath = tts_module.AUDIO_DIR / f"book_{book_id}_audiobook_{provider.value}.{format}"
+    return filepath if filepath.exists() else None
+
+
+def _save_audiobook_file(book_id: int, provider: tts_module.TTSProvider, audio_data: bytes, format: str = "mp3") -> str:
+    filepath = tts_module.AUDIO_DIR / f"book_{book_id}_audiobook_{provider.value}.{format}"
+    filepath.write_bytes(audio_data)
+    return str(filepath)
+
+
+@router.get("/chapters/{chapter_id}/audio-review")
+def get_chapter_audio_review(request: Request, chapter_id: int):
+    """Return review metadata for the latest rendered chapter audio."""
+    require_auth(request)
+    chapter = get_chapter_with_tts_jobs(chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    latest_completed_job = None
+    completed_jobs = [job for job in (chapter.tts_jobs or []) if str(getattr(job.status, 'value', job.status)) == 'completed']
+    if completed_jobs:
+        latest_completed_job = max(completed_jobs, key=lambda job: job.completed_at or job.created_at)
+
+    audio_path = tts_module.get_audio_path(chapter.book_id, chapter.id, tts_module.TTSProvider.ELEVENLABS)
+    return {
+        "chapter_id": chapter.id,
+        "book_id": chapter.book_id,
+        "audio_available": bool(audio_path),
+        "audio_updated_at": str(audio_path.stat().st_mtime) if audio_path else None,
+        "latest_job": _serialize_job(latest_completed_job) if latest_completed_job else None,
+    }
 
 
 @router.post("/chapters/{chapter_id}/render")
@@ -436,7 +530,7 @@ async def render_chapter_from_voice_plan(request: Request, chapter_id: int):
     if missing_speakers:
         raise HTTPException(
             status_code=400,
-            detail=f"Assign voices before rendering. Missing voice IDs for: {', '.join(missing_speakers)}"
+            detail=f"Assign voices before rendering. Missing voice IDs for: {', '.join(missing_speakers)}",
         )
     if not render_segments:
         raise HTTPException(status_code=400, detail="No renderable segments found in the saved chapter voice plan.")
@@ -499,66 +593,101 @@ async def render_chapter_from_voice_plan(request: Request, chapter_id: int):
             job.completed_at = datetime.now()
         session.commit()
         session.refresh(job)
-
-        return {
-            "id": job.id,
-            "chapter_id": job.chapter_id,
-            "provider": job.provider.value,
-            "voice_id": job.voice_id,
-            "status": job.status.value,
-            "audio_path": job.audio_path,
-            "audio_duration": job.audio_duration,
-            "error_message": job.error_message,
-            "created_at": str(job.created_at),
-            "completed_at": str(job.completed_at) if job.completed_at else None,
-        }
+        return _serialize_job(job)
     finally:
         session.close()
 
-    tts_request = tts_module.TTSRequest(
-        text=chapter.content,
-        provider=tts_provider,
-        voice_id=body.voice_id,
-        model=body.model or manager.get_provider(tts_provider).get_available_models()[0],
-    )
 
-    response = await manager.generate_speech(tts_request)
+@router.get("/books/{book_id}/audiobook/status")
+def get_audiobook_status(request: Request, book_id: int):
+    """Return chapter-audio readiness and full-audiobook availability for a book."""
+    require_auth(request)
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
 
-    session = get_session()
-    try:
-        job = session.query(TTSJob).filter(TTSJob.id == job_id).first()
-        if response.error:
-            job.status = TTSJobStatus.FAILED
-            job.error_message = response.error
+    chapters = get_chapters_for_book(book_id)
+    rendered_chapters: list[dict[str, Any]] = []
+    missing_chapters: list[dict[str, Any]] = []
+    for chapter in chapters:
+        audio_path = tts_module.get_audio_path(book_id, chapter.id, tts_module.TTSProvider.ELEVENLABS)
+        chapter_data = {
+            "id": chapter.id,
+            "order": chapter.order,
+            "title": chapter.title,
+        }
+        if audio_path:
+            chapter_data["audio_updated_at"] = str(audio_path.stat().st_mtime)
+            rendered_chapters.append(chapter_data)
         else:
-            audio_path = tts_module.save_audio_file(
-                book_id=chapter.book_id,
-                chapter_id=chapter.id,
-                provider=tts_provider,
-                audio_data=response.audio_data,
-            )
-            job.status = TTSJobStatus.COMPLETED
-            job.audio_path = audio_path
-            job.audio_duration = response.duration_seconds
-            job.cost_tokens = response.cost_tokens
-            job.completed_at = datetime.now()
+            missing_chapters.append(chapter_data)
 
-        session.commit()
-        session.refresh(job)
+    audiobook_path = _get_audiobook_path(book_id, tts_module.TTSProvider.ELEVENLABS)
+    return {
+        "book_id": book_id,
+        "total_chapters": len(chapters),
+        "rendered_chapters": rendered_chapters,
+        "missing_chapters": missing_chapters,
+        "ready_for_assembly": bool(chapters) and not missing_chapters,
+        "audiobook_available": bool(audiobook_path),
+        "audiobook_updated_at": str(audiobook_path.stat().st_mtime) if audiobook_path else None,
+    }
 
-        return {
-            "id": job.id,
-            "chapter_id": job.chapter_id,
-            "provider": job.provider.value,
-            "voice_id": job.voice_id,
-            "status": job.status.value,
-            "audio_path": job.audio_path,
-            "audio_duration": job.audio_duration,
-            "error_message": job.error_message,
-            "created_at": str(job.created_at),
-        }
-    finally:
-        session.close()
+
+@router.post("/books/{book_id}/audiobook/render")
+def build_audiobook(request: Request, book_id: int):
+    """Build a consolidated audiobook once every chapter has review audio."""
+    require_auth(request)
+    book = get_book_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    chapters = get_chapters_for_book(book_id)
+    if not chapters:
+        raise HTTPException(status_code=400, detail="Add chapters to this book before building the audiobook.")
+
+    chapter_paths = []
+    missing = []
+    for chapter in chapters:
+        audio_path = tts_module.get_audio_path(book_id, chapter.id, tts_module.TTSProvider.ELEVENLABS)
+        if not audio_path:
+            missing.append(f"{chapter.order}. {chapter.title}")
+        else:
+            chapter_paths.append(audio_path)
+
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Render every chapter first before building the audiobook. Missing chapter audio for: " + ", ".join(missing),
+        )
+
+    combined_audio = b"".join(path.read_bytes() for path in chapter_paths)
+    if not combined_audio:
+        raise HTTPException(status_code=400, detail="No chapter audio files were available to combine.")
+
+    audio_path = _save_audiobook_file(book_id, tts_module.TTSProvider.ELEVENLABS, combined_audio)
+    return {
+        "book_id": book_id,
+        "audio_path": audio_path,
+        "chapter_count": len(chapters),
+        "built_at": str(datetime.now()),
+    }
+
+
+@router.get("/audio/books/{book_id}/{provider}")
+def get_audiobook_file(request: Request, book_id: int, provider: str):
+    """Serve a generated full-book audiobook file."""
+    require_auth(request)
+    try:
+        tts_provider = tts_module.TTSProvider(provider)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    audio_path = _get_audiobook_path(book_id, tts_provider)
+    if not audio_path:
+        raise HTTPException(status_code=404, detail="Audiobook file not found")
+
+    return FileResponse(str(audio_path), media_type="audio/mpeg")
 
 
 @router.get("/jobs/{job_id}")
@@ -629,7 +758,6 @@ def configure_provider(request: Request, body: dict):
 def get_audio_file(request: Request, book_id: int, chapter_id: int, provider: str):
     """Serve a generated audio file."""
     require_auth(request)
-    from fastapi.responses import FileResponse
     try:
         tts_provider = tts_module.TTSProvider(provider)
     except ValueError:
