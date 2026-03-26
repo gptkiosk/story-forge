@@ -137,7 +137,10 @@ async def list_voices(request: Request, provider: str):
         raise HTTPException(status_code=502, detail=f"Unable to load ElevenLabs voices: {e}")
 
     if not voices:
-        raise HTTPException(status_code=502, detail="ElevenLabs returned no voices. Check the API key and account access in Integrations.")
+        raise HTTPException(
+            status_code=502,
+            detail="ElevenLabs returned no voices. Check the API key in Integrations, and if you are using a scoped key make sure it has permission to list voices."
+        )
 
     return {"voices": [{
         "voice_id": v.voice_id,

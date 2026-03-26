@@ -375,8 +375,12 @@ class ElevenLabsProvider(TTSProviderBase):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    f"{ELEVENLABS_API_URL}/voices",
+                    "https://api.elevenlabs.io/v2/voices",
                     headers=self._get_json_headers(),
+                    params={
+                        "page_size": 100,
+                        "include_total_count": "true",
+                    },
                 )
 
                 if response.status_code != 200:
