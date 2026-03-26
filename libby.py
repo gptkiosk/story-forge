@@ -377,6 +377,9 @@ class LibbyClient:
                 "Task: refine a chapter voice plan.\n"
                 "Preserve the existing segment text exactly. Do not merge, split, or rewrite text.\n"
                 "Pick the best chapter-level narration speaker from the cleaned roster or Narrator.\n"
+                "For every segment, choose the most accurate speaker and delivery hint from: neutral, quiet, questioning, heightened, heavy.\n"
+                "Narration should default to neutral unless the prose clearly carries fear, grief, urgency, exhaustion, or a strong POV emotional charge.\n"
+                "Dialogue should use delivery hints that reflect the line and nearby narration, not just punctuation.\n"
                 "Output shape: {\"narrator_speaker\":\"...\",\"segment_updates\":[{\"index\":1,\"speaker\":\"...\",\"delivery_hint\":\"...\",\"type\":\"narration\"}]}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )

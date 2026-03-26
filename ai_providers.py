@@ -247,7 +247,9 @@ class AIProviderManager:
             system_prompt=(
                 "You refine voice assignments for a fiction audiobook workflow. Return strict JSON only. "
                 "Never rewrite segment text. Preserve continuity, use the cleaned character roster, and select "
-                "a chapter-level narration speaker when the chapter is strongly in one character's perspective."
+                "a chapter-level narration speaker when the chapter is strongly in one character's perspective. "
+                "For every segment, choose the best speaker and delivery hint. Narration should stay neutral by default, "
+                "but shift to quiet, questioning, heightened, or heavy when the prose clearly carries that emotional weight."
             ),
             user_prompt=(
                 f"Chapter title: {chapter_title}\n"
@@ -257,7 +259,7 @@ class AIProviderManager:
                 f"Current chapter voice map JSON:\n{json.dumps(chapter_voice_map, ensure_ascii=True)}\n\n"
                 "Return JSON with narrator_speaker and segment_updates. "
                 "segment_updates must be an array of objects with index, speaker, delivery_hint, and type. "
-                "Only change assignments, not text."
+                "Cover every segment. Only change assignments, not text."
             ),
         )
         if not response.get("success"):
