@@ -301,6 +301,14 @@ class ElevenLabsProvider(TTSProviderBase):
             "Accept": "audio/mpeg",
         }
 
+    def _get_json_headers(self) -> dict:
+        """Get JSON request headers for non-audio endpoints."""
+        return {
+            "xi-api-key": self._api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+
     async def generate_speech(self, request: TTSRequest) -> TTSResponse:
         """Generate speech using ElevenLabs API."""
         if not self._api_key:
@@ -368,7 +376,7 @@ class ElevenLabsProvider(TTSProviderBase):
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{ELEVENLABS_API_URL}/voices",
-                    headers=self._get_headers(),
+                    headers=self._get_json_headers(),
                 )
 
                 if response.status_code != 200:
@@ -445,7 +453,7 @@ class ElevenLabsProvider(TTSProviderBase):
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     f"{ELEVENLABS_API_URL}/voices/{voice_id}",
-                    headers=self._get_headers(),
+                    headers=self._get_json_headers(),
                 )
 
                 if response.status_code != 200:

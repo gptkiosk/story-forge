@@ -70,6 +70,30 @@ STYLE_TEMPLATES = [
 - Keep the voice agile, human, and slightly self-aware.
 """,
     },
+    {
+        "id": "storybook-wonder",
+        "name": "Storybook Wonder",
+        "description": "Warm, visual, gently magical prose with rhythmic clarity and emotional safety for younger readers.",
+        "starter_markdown": """# Style DNA
+
+- Keep sentences musical, clear, and easy to follow aloud.
+- Favor vivid imagery, warmth, and delight over density.
+- Let wonder arrive through simple, memorable details.
+- Use emotional beats that feel safe, sincere, and hopeful.
+""",
+    },
+    {
+        "id": "playful-read-aloud",
+        "name": "Playful Read-Aloud",
+        "description": "Bouncy, expressive storytelling with strong cadence, humor, and page-turn energy for children's fiction.",
+        "starter_markdown": """# Style DNA
+
+- Write with read-aloud rhythm and strong sentence variety.
+- Make beats lively, tactile, and fun to perform.
+- Use repetition, escalation, and surprise with restraint.
+- Keep vocabulary accessible while still feeling clever and memorable.
+""",
+    },
 ]
 
 GENRE_TEMPLATES = [
@@ -131,6 +155,30 @@ GENRE_TEMPLATES = [
 - End scenes with pressure, threat, or destabilizing discovery.
 - Keep information flow tight and strategically timed.
 - Let pace stay fast without losing coherence or emotional stakes.
+""",
+    },
+    {
+        "id": "picture-book-adventure",
+        "name": "Picture Book Adventure",
+        "description": "Clear emotional arcs, visual beats, read-aloud cadence, and page-turn-ready discoveries for younger readers.",
+        "starter_markdown": """# Genre Tropes
+
+- Keep each beat easy to visualize and emotionally legible.
+- Favor wonder, curiosity, and satisfying discovery over heavy peril.
+- Let repetition and contrast support read-aloud momentum.
+- Build scenes that feel page-turnable and illustration-friendly.
+""",
+    },
+    {
+        "id": "middle-grade-quest",
+        "name": "Middle Grade Quest",
+        "description": "Adventure-forward plotting, friendship pressure, bravery growth, and imaginative world rules for children's chapter books.",
+        "starter_markdown": """# Genre Tropes
+
+- Keep stakes big enough to matter but grounded in a child's emotional world.
+- Let friendship, courage, and problem-solving drive the plot.
+- Make world rules playful, discoverable, and consistently applied.
+- Balance danger with humor, wonder, and reassurance.
 """,
     },
 ]
