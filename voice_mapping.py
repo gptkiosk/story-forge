@@ -142,6 +142,21 @@ def _normalize_character_payload(entry: dict) -> dict:
     }
 
 
+def _normalize_excluded_names(entries: list[str] | None) -> list[str]:
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for entry in entries or []:
+        value = str(entry or "").strip()
+        if not value:
+            continue
+        lowered = value.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        normalized.append(value)
+    return normalized
+
+
 def _serialize_character_voice(character_voice: CharacterVoice, existing_entry: dict | None = None) -> dict:
     return {
         "character_name": character_voice.character_name,
@@ -190,6 +205,8 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
             if str(entry.get("character_name") or "").strip()
         }
         existing_narrator = existing_payload.get("narrator") or {}
+        existing_excluded_names = _normalize_excluded_names(existing_payload.get("excluded_names"))
+        excluded_name_keys = {entry.lower() for entry in existing_excluded_names}
         existing = session.query(CharacterVoice).filter(CharacterVoice.book_id == book_id).all()
         existing_map = {row.character_name.lower(): row for row in existing}
 
@@ -206,7 +223,7 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
         for source in (_extract_candidate_names("\n\n".join(chapter_texts)),):
             for name in source:
                 lowered = name.lower()
-                if lowered in seen_candidates:
+                if lowered in seen_candidates or lowered in excluded_name_keys:
                     continue
                 seen_candidates.add(lowered)
                 candidates.append(name)
@@ -254,6 +271,7 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
                 for row in ordered_rows
             ],
             "narrator": _normalize_narrator_payload(existing_narrator),
+            "excluded_names": existing_excluded_names,
         }
         _write_json(get_book_voice_map_path(book_id), payload)
         return payload
@@ -261,7 +279,7 @@ def sync_character_voices(book_id: int, chapter_content: str = "") -> dict:
         session.close()
 
 
-def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict | None = None) -> dict:
+def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict | None = None, excluded_names: list[str] | None = None) -> dict:
     cleaned_characters = []
     seen: set[str] = set()
     for entry in characters:
@@ -274,14 +292,19 @@ def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict |
         seen.add(lowered)
         cleaned_characters.append(normalized)
 
+    existing_payload = _read_json(get_book_voice_map_path(book_id)) or {}
+    existing_excluded_names = _normalize_excluded_names(existing_payload.get("excluded_names"))
+
     session = get_session()
     try:
         existing_rows = session.query(CharacterVoice).filter(CharacterVoice.book_id == book_id).all()
         existing_map = {row.character_name.lower(): row for row in existing_rows}
         submitted_names = {entry["character_name"].lower() for entry in cleaned_characters}
 
+        removed_names: list[str] = []
         for lowered, row in existing_map.items():
             if lowered not in submitted_names:
+                removed_names.append(row.character_name)
                 session.delete(row)
 
         for entry in cleaned_characters:
@@ -298,11 +321,15 @@ def update_book_voice_map(book_id: int, characters: list[dict], narrator: dict |
             row.elevenlabs_voice_id = entry["elevenlabs_voice_id"]
 
         session.commit()
+        next_excluded_names = _normalize_excluded_names((excluded_names or existing_excluded_names) + removed_names)
+        cleaned_name_keys = {entry["character_name"].lower() for entry in cleaned_characters}
+        next_excluded_names = [entry for entry in next_excluded_names if entry.lower() not in cleaned_name_keys]
         payload = {
             "book_id": book_id,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "characters": cleaned_characters,
             "narrator": _normalize_narrator_payload(narrator),
+            "excluded_names": next_excluded_names,
         }
         _write_json(get_book_voice_map_path(book_id), payload)
         return payload
@@ -598,6 +625,7 @@ def load_book_voice_map(book_id: int) -> dict:
         return sync_character_voices(book_id)
     payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
     payload["narrator"] = _normalize_narrator_payload(payload.get("narrator"))
+    payload["excluded_names"] = _normalize_excluded_names(payload.get("excluded_names"))
     return payload
 
 

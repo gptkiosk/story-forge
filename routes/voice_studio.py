@@ -40,6 +40,7 @@ class GenerateRequest(BaseModel):
 class BookVoiceMapUpdateRequest(BaseModel):
     characters: list[dict[str, Any]]
     narrator: Optional[dict[str, Any]] = None
+    excluded_names: Optional[list[str]] = None
 
 
 class ChapterVoiceMapUpdateRequest(BaseModel):
@@ -216,7 +217,7 @@ def save_book_voice_map(request: Request, book_id: int, body: BookVoiceMapUpdate
     book = get_book_by_id(book_id)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
-    return update_book_voice_map(book_id=book_id, characters=body.characters, narrator=body.narrator)
+    return update_book_voice_map(book_id=book_id, characters=body.characters, narrator=body.narrator, excluded_names=body.excluded_names)
 
 
 @router.get("/chapters/{chapter_id}/voice-map")

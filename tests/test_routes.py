@@ -900,6 +900,51 @@ class TestVoiceMappingRoutes:
         assert roster["narrator"]["character_name"] == "Dad"
         assert roster["narrator"]["elevenlabs_voice_settings"]["stability"] == 0.67
 
+    def test_removed_voice_roster_names_become_book_exclusions(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_id = client.post(
+            "/api/books",
+            json={"title": "Exclude List Book", "author": "Tester", "description": "Exclude roster test", "status": "draft"},
+        ).json()["id"]
+        chapter_id = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        ).json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={"content": '"Move," Dad said. All the lights flickered while Tommy waited.'},
+        )
+
+        first_roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map").json()
+        assert any(entry["character_name"] == "All" for entry in first_roster["characters"])
+
+        save_roster = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [entry for entry in first_roster["characters"] if entry["character_name"] != "All"],
+                "narrator": first_roster["narrator"],
+            },
+        )
+        assert save_roster.status_code == 200
+        assert "All" in save_roster.json()["excluded_names"]
+
+        rebuilt = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/rebuild")
+        assert rebuilt.status_code == 200
+
+        refreshed_roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map").json()
+        assert "All" in refreshed_roster["excluded_names"]
+        assert all(entry["character_name"] != "All" for entry in refreshed_roster["characters"])
+
     def test_book_voice_roster_accumulates_new_characters_across_chapters(self, tmp_path, monkeypatch):
         import voice_mapping
 
