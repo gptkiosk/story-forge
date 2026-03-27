@@ -3,6 +3,9 @@ Voice Studio / TTS routes for Story Forge API
 """
 from datetime import datetime
 from io import BytesIO
+import subprocess
+import tempfile
+import wave
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import Any, Optional
@@ -47,6 +50,7 @@ class ChapterVoiceMapUpdateRequest(BaseModel):
     segments: list[dict[str, Any]]
     characters: Optional[list[dict[str, Any]]] = None
     narrator_speaker: Optional[str] = None
+    chapter_announcement: Optional[dict[str, Any]] = None
 
 
 class PreviewRequest(BaseModel):
@@ -102,6 +106,28 @@ def _build_segment_render_plan(chapter_voice_map: dict, voice_roster: dict) -> t
         )
 
     return render_segments, sorted({entry for entry in missing if entry})
+
+
+def _build_announcement_render_segment(chapter_voice_map: dict, voice_roster: dict) -> tuple[dict[str, Any] | None, list[str]]:
+    announcement = chapter_voice_map.get("chapter_announcement") or {}
+    if not announcement.get("enabled", True):
+        return None, []
+
+    text = str(announcement.get("text") or "").strip()
+    if not text:
+        return None, []
+
+    speaker = str(announcement.get("speaker") or "Narrator").strip() or "Narrator"
+    voice_id = _resolve_voice_id_for_speaker(chapter_voice_map, voice_roster, speaker)
+    if not voice_id:
+        return None, [speaker]
+
+    return {
+        "speaker": speaker,
+        "voice_id": voice_id,
+        "text": text,
+        "delivery_hint": "neutral",
+    }, []
 
 
 def _build_story_context(book_id: int) -> dict:
@@ -251,6 +277,7 @@ def save_chapter_voice_map(request: Request, chapter_id: int, body: ChapterVoice
             segments=body.segments,
             characters=body.characters,
             narrator_speaker=body.narrator_speaker,
+            chapter_announcement=body.chapter_announcement,
         )
     except VoiceMapValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -476,15 +503,77 @@ def _serialize_job(job: TTSJob) -> dict[str, Any]:
     }
 
 
-def _get_audiobook_path(book_id: int, provider: tts_module.TTSProvider, format: str = "mp3"):
-    filepath = tts_module.AUDIO_DIR / f"book_{book_id}_audiobook_{provider.value}.{format}"
-    return filepath if filepath.exists() else None
+def _get_audiobook_path(book_id: int, provider: tts_module.TTSProvider, format: str | None = None):
+    formats = [format] if format else ["m4b", "mp3"]
+    for candidate_format in formats:
+        filepath = tts_module.AUDIO_DIR / f"book_{book_id}_audiobook_{provider.value}.{candidate_format}"
+        if filepath.exists():
+            return filepath
+    return None
 
 
 def _save_audiobook_file(book_id: int, provider: tts_module.TTSProvider, audio_data: bytes, format: str = "mp3") -> str:
     filepath = tts_module.AUDIO_DIR / f"book_{book_id}_audiobook_{provider.value}.{format}"
     filepath.write_bytes(audio_data)
     return str(filepath)
+
+
+def _run_afconvert(input_path: str, output_path: str, *args: str) -> None:
+    try:
+        subprocess.run(
+            ["/usr/bin/afconvert", *args, input_path, output_path],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.strip() or exc.stdout.strip() or "afconvert failed"
+        raise RuntimeError(detail) from exc
+
+
+def _convert_audio_to_wav(input_path: str, output_path: str) -> None:
+    _run_afconvert(input_path, output_path, "-f", "WAVE", "-d", "LEI16@44100", "-c", "1")
+
+
+def _convert_wav_to_audiobook(input_path: str, output_path: str) -> None:
+    _run_afconvert(input_path, output_path, "-f", "m4bf")
+
+
+def _write_silence_frames(writer: wave.Wave_write, duration_seconds: float, channels: int, sample_width: int, sample_rate: int) -> None:
+    frame_count = int(sample_rate * max(duration_seconds, 0))
+    if frame_count <= 0:
+        return
+    writer.writeframes(b"\x00" * frame_count * channels * sample_width)
+
+
+def _stitch_chapter_audio_with_pauses(chapter_paths: list[str], pause_seconds: float = 2.0) -> bytes:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        wav_paths: list[str] = []
+        for index, chapter_path in enumerate(chapter_paths, start=1):
+            wav_path = f"{temp_dir}/chapter_{index}.wav"
+            _convert_audio_to_wav(chapter_path, wav_path)
+            wav_paths.append(wav_path)
+
+        stitched_wav = f"{temp_dir}/audiobook.wav"
+        with wave.open(wav_paths[0], "rb") as first_reader:
+            channels = first_reader.getnchannels()
+            sample_width = first_reader.getsampwidth()
+            sample_rate = first_reader.getframerate()
+
+        with wave.open(stitched_wav, "wb") as writer:
+            writer.setnchannels(channels)
+            writer.setsampwidth(sample_width)
+            writer.setframerate(sample_rate)
+
+            for index, wav_path in enumerate(wav_paths):
+                with wave.open(wav_path, "rb") as reader:
+                    writer.writeframes(reader.readframes(reader.getnframes()))
+                if index < len(wav_paths) - 1:
+                    _write_silence_frames(writer, pause_seconds, channels, sample_width, sample_rate)
+
+        audiobook_path = f"{temp_dir}/audiobook.m4b"
+        _convert_wav_to_audiobook(stitched_wav, audiobook_path)
+        return open(audiobook_path, "rb").read()
 
 
 @router.get("/chapters/{chapter_id}/audio-review")
@@ -526,7 +615,11 @@ async def render_chapter_from_voice_plan(request: Request, chapter_id: int):
         chapter_content=chapter.content or "",
     )
     voice_roster = load_book_voice_map(chapter.book_id)
+    announcement_segment, missing_announcement_speakers = _build_announcement_render_segment(chapter_voice_map, voice_roster)
     render_segments, missing_speakers = _build_segment_render_plan(chapter_voice_map, voice_roster)
+    if announcement_segment:
+        render_segments = [announcement_segment, *render_segments]
+    missing_speakers = sorted({*missing_speakers, *missing_announcement_speakers})
 
     if missing_speakers:
         raise HTTPException(
@@ -632,6 +725,8 @@ def get_audiobook_status(request: Request, book_id: int):
         "ready_for_assembly": bool(chapters) and not missing_chapters,
         "audiobook_available": bool(audiobook_path),
         "audiobook_updated_at": str(audiobook_path.stat().st_mtime) if audiobook_path else None,
+        "audiobook_format": audiobook_path.suffix.lstrip(".") if audiobook_path else None,
+        "stitch_pause_seconds": 2.0,
     }
 
 
@@ -647,14 +742,14 @@ def build_audiobook(request: Request, book_id: int):
     if not chapters:
         raise HTTPException(status_code=400, detail="Add chapters to this book before building the audiobook.")
 
-    chapter_paths = []
+    chapter_paths: list[str] = []
     missing = []
     for chapter in chapters:
         audio_path = tts_module.get_audio_path(book_id, chapter.id, tts_module.TTSProvider.ELEVENLABS)
         if not audio_path:
             missing.append(f"{chapter.order}. {chapter.title}")
         else:
-            chapter_paths.append(audio_path)
+            chapter_paths.append(str(audio_path))
 
     if missing:
         raise HTTPException(
@@ -662,16 +757,21 @@ def build_audiobook(request: Request, book_id: int):
             detail="Render every chapter first before building the audiobook. Missing chapter audio for: " + ", ".join(missing),
         )
 
-    combined_audio = b"".join(path.read_bytes() for path in chapter_paths)
+    try:
+        combined_audio = _stitch_chapter_audio_with_pauses(chapter_paths, pause_seconds=2.0)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to stitch chapter audio on this machine: {exc}")
     if not combined_audio:
         raise HTTPException(status_code=400, detail="No chapter audio files were available to combine.")
 
-    audio_path = _save_audiobook_file(book_id, tts_module.TTSProvider.ELEVENLABS, combined_audio)
+    audio_path = _save_audiobook_file(book_id, tts_module.TTSProvider.ELEVENLABS, combined_audio, format="m4b")
     return {
         "book_id": book_id,
         "audio_path": audio_path,
         "chapter_count": len(chapters),
         "built_at": str(datetime.now()),
+        "format": "m4b",
+        "stitch_pause_seconds": 2.0,
     }
 
 
@@ -688,7 +788,8 @@ def get_audiobook_file(request: Request, book_id: int, provider: str):
     if not audio_path:
         raise HTTPException(status_code=404, detail="Audiobook file not found")
 
-    return FileResponse(str(audio_path), media_type="audio/mpeg")
+    media_type = "audio/mp4" if str(audio_path).endswith(".m4b") else "audio/mpeg"
+    return FileResponse(str(audio_path), media_type=media_type)
 
 
 @router.get("/jobs/{job_id}")

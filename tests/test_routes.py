@@ -1153,6 +1153,78 @@ class TestVoiceMappingRoutes:
         assert save_plan_response.status_code == 200
         assert save_plan_response.json()["unassigned_segment_count"] == 0
 
+    def test_chapter_announcement_persists_through_rebuild(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_id = client.post(
+            "/api/books",
+            json={"title": "Announcement Book", "author": "Tester", "description": "Announcement persistence test", "status": "draft"},
+        ).json()["id"]
+        chapter_id = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 7: Into the Storm", "order": 7},
+        ).json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={"content": '"Brace yourself," Mira said.'},
+        )
+
+        save_roster_response = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={
+                "characters": [{"character_name": "Mira", "elevenlabs_voice_id": "voice_mira"}],
+                "narrator": {"character_name": "Narrator"},
+            },
+        )
+        assert save_roster_response.status_code == 200
+
+        save_plan_response = client.put(
+            f"/api/voice-studio/chapters/{chapter_id}/voice-map",
+            json={
+                "characters": [{"character_name": "Mira", "elevenlabs_voice_id": "voice_mira"}],
+                "narrator_speaker": "Narrator",
+                "chapter_announcement": {
+                    "enabled": True,
+                    "speaker": "Mira",
+                    "text": "Chapter Seven. Into the Storm.",
+                },
+                "segments": [
+                    {
+                        "index": 1,
+                        "type": "dialogue",
+                        "speaker": "Mira",
+                        "text": "Brace yourself,",
+                        "delivery_hint": "heightened",
+                    },
+                    {
+                        "index": 2,
+                        "type": "narration",
+                        "speaker": "Narrator",
+                        "text": "Mira said.",
+                        "delivery_hint": "neutral",
+                    },
+                ],
+            },
+        )
+        assert save_plan_response.status_code == 200
+        assert save_plan_response.json()["chapter_announcement"]["speaker"] == "Mira"
+
+        rebuild_response = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/rebuild")
+        assert rebuild_response.status_code == 200
+        rebuilt = rebuild_response.json()
+        assert rebuilt["chapter_announcement"]["enabled"] is True
+        assert rebuilt["chapter_announcement"]["speaker"] == "Mira"
+        assert rebuilt["chapter_announcement"]["text"] == "Chapter Seven. Into the Storm."
+
     def test_ai_refine_chapter_plan_updates_narrator_and_speakers(self, tmp_path, monkeypatch):
         import voice_mapping
 

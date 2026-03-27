@@ -201,6 +201,16 @@ def _normalize_narrator_payload(entry: dict | None) -> dict:
     }
 
 
+def _normalize_chapter_announcement(entry: dict | None, chapter_title: str) -> dict:
+    entry = entry or {}
+    default_text = str(chapter_title or "").strip() or "Chapter"
+    return {
+        "enabled": bool(entry.get("enabled", True)),
+        "speaker": str(entry.get("speaker") or "Narrator").strip() or "Narrator",
+        "text": str(entry.get("text") or default_text).strip() or default_text,
+    }
+
+
 def _write_json(path: Path, payload: dict):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -578,7 +588,13 @@ def _count_unassigned_segments(segments: list[dict], characters: list[dict], nar
     return count
 
 
-def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
+def build_chapter_voice_map(
+    book_id: int,
+    chapter_id: int,
+    chapter_title: str,
+    chapter_content: str,
+    chapter_announcement: dict | None = None,
+) -> dict:
     roster = sync_character_voices(book_id=book_id, chapter_content=chapter_content)
     known_names = [entry["character_name"] for entry in roster["characters"]]
     drafted_segments = _segment_text(chapter_content, known_names)
@@ -591,6 +607,7 @@ def build_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, c
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster["characters"],
+        "chapter_announcement": _normalize_chapter_announcement(chapter_announcement, chapter_title),
         "narrator_speaker": narrator_speaker,
         "segments": segments,
         "coverage_ratio": round(similarity_ratio, 4),
@@ -608,11 +625,13 @@ def update_chapter_voice_map(
     segments: list[dict],
     characters: list[dict] | None = None,
     narrator_speaker: str | None = None,
+    chapter_announcement: dict | None = None,
 ) -> dict:
     roster = load_book_voice_map(book_id)
     roster_characters = roster.get("characters") or []
     if characters is not None:
         roster_characters = [_normalize_character_payload(entry) for entry in characters if entry]
+    existing_payload = _read_json(get_chapter_voice_map_path(book_id, chapter_id)) or {}
     normalized_narrator = str(narrator_speaker or "Narrator").strip() or "Narrator"
     finalized_segments = _finalize_segments(chapter_content, _apply_narrator_speaker(segments, normalized_narrator))
     _, similarity_ratio = _coverage_metrics(chapter_content, finalized_segments)
@@ -622,6 +641,10 @@ def update_chapter_voice_map(
         "chapter_title": chapter_title,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "characters": roster_characters,
+        "chapter_announcement": _normalize_chapter_announcement(
+            chapter_announcement if chapter_announcement is not None else existing_payload.get("chapter_announcement"),
+            chapter_title,
+        ),
         "narrator_speaker": normalized_narrator,
         "segments": finalized_segments,
         "coverage_ratio": round(similarity_ratio, 4),
@@ -633,12 +656,19 @@ def update_chapter_voice_map(
 
 def rebuild_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, chapter_content: str) -> dict:
     path = get_chapter_voice_map_path(book_id, chapter_id)
+    existing_payload = _read_json(path) or {}
     if path.exists():
         try:
             path.unlink()
         except OSError:
             pass
-    return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
+    return build_chapter_voice_map(
+        book_id,
+        chapter_id,
+        chapter_title,
+        chapter_content,
+        chapter_announcement=existing_payload.get("chapter_announcement"),
+    )
 
 
 def load_book_voice_map(book_id: int) -> dict:
@@ -658,6 +688,7 @@ def load_chapter_voice_map(book_id: int, chapter_id: int, chapter_title: str, ch
     if payload is None:
         return build_chapter_voice_map(book_id, chapter_id, chapter_title, chapter_content)
     payload["characters"] = [_normalize_character_payload(entry) for entry in payload.get("characters") or []]
+    payload["chapter_announcement"] = _normalize_chapter_announcement(payload.get("chapter_announcement"), chapter_title)
     narrator_speaker = str(payload.get("narrator_speaker") or "Narrator").strip() or "Narrator"
     payload["narrator_speaker"] = narrator_speaker
     payload["segments"] = _finalize_segments(
