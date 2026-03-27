@@ -37,8 +37,15 @@ LOW_SIGNAL_NAMES = {
     "Tomorrow", "Yesterday", "Morning", "Evening", "Night", "Day", "Year", "Years",
     "Month", "Months", "Week", "Weeks", "Yes", "No", "Okay", "Later", "Soon",
     "Suddenly", "Finally", "Meanwhile", "Still", "Everything", "Nothing", "Something",
-    "Someone", "Everybody", "Nobody", "Implant", "Era", "Origins", "Back",
+    "Someone", "Anybody", "Everyone", "Everybody", "Nobody", "Anybody", "Anything",
+    "Everything", "Something", "Someone", "Somebody", "Nobody", "Everybody", "All",
+    "Another", "Others", "Several", "Many", "Few", "Each", "Either", "Neither",
+    "Both", "Bodies", "Hands", "Eyes", "Face", "Faces", "Voice", "Voices", "Mind",
+    "He", "She", "They", "Them", "Their", "His", "Her", "Hers", "Him", "We", "Us",
+    "Our", "Ours", "You", "Your", "Yours", "I", "Me", "My", "Mine", "It", "Its",
+    "Implant", "Era", "Origins", "Back",
 }
+LOW_SIGNAL_NAME_KEYS = {entry.lower() for entry in LOW_SIGNAL_NAMES}
 POV_VERBS = (
     "thought", "wondered", "felt", "knew", "remembered", "noticed", "watched",
     "saw", "heard", "feared", "hoped", "realized", "considered", "decided",
@@ -88,6 +95,22 @@ def _extract_attributed_names(text: str) -> list[str]:
     return names
 
 
+def _is_low_signal_name(name: str) -> bool:
+    normalized = name.strip(".,!?;:\"'()[]{}")
+    if not normalized:
+        return True
+    if normalized in LOW_SIGNAL_NAMES:
+        return True
+    lowered = normalized.lower()
+    if lowered in LOW_SIGNAL_NAME_KEYS:
+        return True
+    if normalized.endswith(("Chapter", "Book", "Part", "Scene")):
+        return True
+    if normalized.endswith("'s") and normalized[:-2] in LOW_SIGNAL_NAMES:
+        return True
+    return False
+
+
 def _extract_candidate_names(text: str) -> list[str]:
     counts: dict[str, int] = {}
     display: dict[str, str] = {}
@@ -104,9 +127,7 @@ def _extract_candidate_names(text: str) -> list[str]:
         lowered = normalized.lower()
         if len(normalized) <= 2:
             continue
-        if normalized in LOW_SIGNAL_NAMES:
-            continue
-        if normalized.endswith(("Chapter", "Book", "Part", "Scene")):
+        if _is_low_signal_name(normalized):
             continue
         counts[lowered] = counts.get(lowered, 0) + 1
         display.setdefault(lowered, normalized)
@@ -116,6 +137,8 @@ def _extract_candidate_names(text: str) -> list[str]:
     for key, count in ranked:
         name = display[key]
         if count < 2 and " " not in name and key not in attributed_set:
+            continue
+        if _is_low_signal_name(name):
             continue
         results.append(name)
     return results[:16]

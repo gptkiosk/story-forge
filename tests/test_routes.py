@@ -922,28 +922,28 @@ class TestVoiceMappingRoutes:
 
         client.put(
             f"/api/chapters/{chapter_id}",
-            json={"content": '"Move," Dad said. All the lights flickered while Tommy waited.'},
+            json={"content": '"Move," Dad said. Lanterns flickered while Tommy waited. Lanterns dimmed again.'},
         )
 
         first_roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map").json()
-        assert any(entry["character_name"] == "All" for entry in first_roster["characters"])
+        assert any(entry["character_name"] == "Lanterns" for entry in first_roster["characters"])
 
         save_roster = client.put(
             f"/api/voice-studio/books/{book_id}/voice-map",
             json={
-                "characters": [entry for entry in first_roster["characters"] if entry["character_name"] != "All"],
+                "characters": [entry for entry in first_roster["characters"] if entry["character_name"] != "Lanterns"],
                 "narrator": first_roster["narrator"],
             },
         )
         assert save_roster.status_code == 200
-        assert "All" in save_roster.json()["excluded_names"]
+        assert "Lanterns" in save_roster.json()["excluded_names"]
 
         rebuilt = client.post(f"/api/voice-studio/chapters/{chapter_id}/voice-map/rebuild")
         assert rebuilt.status_code == 200
 
         refreshed_roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map").json()
-        assert "All" in refreshed_roster["excluded_names"]
-        assert all(entry["character_name"] != "All" for entry in refreshed_roster["characters"])
+        assert "Lanterns" in refreshed_roster["excluded_names"]
+        assert all(entry["character_name"] != "Lanterns" for entry in refreshed_roster["characters"])
 
     def test_book_voice_roster_accumulates_new_characters_across_chapters(self, tmp_path, monkeypatch):
         import voice_mapping
@@ -1000,6 +1000,40 @@ class TestVoiceMappingRoutes:
         assert 'Dad' in names
         assert 'Tommy' in names
         assert 'Mira' in names
+
+    def test_built_in_stoplist_filters_common_false_positive_names(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_id = client.post(
+            "/api/books",
+            json={"title": "Stoplist Book", "author": "Tester", "description": "False positive filter test", "status": "draft"},
+        ).json()["id"]
+        chapter_id = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        ).json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={"content": '"Move," Dad said. All the bodies froze while Tommy waited. She stayed quiet.'},
+        )
+
+        roster = client.get(f"/api/voice-studio/books/{book_id}/voice-map")
+        assert roster.status_code == 200
+        names = {entry["character_name"] for entry in roster.json()["characters"]}
+        assert "Dad" in names
+        assert "Tommy" in names
+        assert "All" not in names
+        assert "Bodies" not in names
+        assert "She" not in names
 
     def test_rebuild_chapter_plan_uses_cleaned_roster_and_infers_pov_narrator(self, tmp_path, monkeypatch):
         import voice_mapping
