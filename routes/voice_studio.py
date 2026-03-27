@@ -687,7 +687,10 @@ async def render_chapter_from_voice_plan(request: Request, chapter_id: int):
             job.completed_at = datetime.now()
         session.commit()
         session.refresh(job)
-        return _serialize_job(job)
+        serialized = _serialize_job(job)
+        if response_error:
+            raise HTTPException(status_code=502, detail=response_error)
+        return serialized
     finally:
         session.close()
 

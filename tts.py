@@ -327,6 +327,10 @@ class ElevenLabsProvider(TTSProviderBase):
             "Accept": "application/json",
         }
 
+    def _refresh_api_key(self) -> str:
+        self._api_key = _get_api_key("ELEVENLABS_API_KEY", f"{KEYCHAIN_SERVICE}-elevenlabs-api-key")
+        return self._api_key
+
     async def generate_speech(self, request: TTSRequest) -> TTSResponse:
         """Generate speech using ElevenLabs API."""
         if not self._api_key:
@@ -346,12 +350,19 @@ class ElevenLabsProvider(TTSProviderBase):
                     },
                 }
 
-                response = await client.post(
-                    f"{ELEVENLABS_API_URL}/text-to-speech/{request.voice_id}",
-                    headers=self._get_headers(),
-                    json=payload,
-                    params={"output_format": "mp3_44100_128"},
-                )
+                async def do_request() -> httpx.Response:
+                    return await client.post(
+                        f"{ELEVENLABS_API_URL}/text-to-speech/{request.voice_id}",
+                        headers=self._get_headers(),
+                        json=payload,
+                        params={"output_format": "mp3_44100_128"},
+                    )
+
+                response = await do_request()
+                if response.status_code == 401:
+                    refreshed_key = self._refresh_api_key()
+                    if refreshed_key:
+                        response = await do_request()
 
                 if response.status_code != 200:
                     return TTSResponse(
