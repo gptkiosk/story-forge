@@ -573,7 +573,7 @@ def _count_unassigned_segments(segments: list[dict], characters: list[dict], nar
     count = 0
     for segment in segments or []:
         speaker = str(segment.get("speaker") or "").strip()
-        if segment.get("type") == "dialogue" and (not speaker or speaker == "Narrator" or speaker == "unassigned_dialogue" or speaker not in valid_speakers):
+        if segment.get("type") == "dialogue" and (not speaker or speaker == "unassigned_dialogue" or speaker not in valid_speakers):
             count += 1
     return count
 

@@ -1096,6 +1096,63 @@ class TestVoiceMappingRoutes:
         }
         assert narration_speakers == {"Mira"}
 
+    def test_dialogue_assigned_to_narrator_is_not_counted_unassigned(self, tmp_path, monkeypatch):
+        import voice_mapping
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(voice_mapping, "VOICE_MAP_ROOT", tmp_path / "voice_maps")
+
+        client = TestClient(app)
+
+        book_id = client.post(
+            "/api/books",
+            json={"title": "Narrator Dialogue Book", "author": "Tester", "description": "Narrator dialogue test", "status": "draft"},
+        ).json()["id"]
+        chapter_id = client.post(
+            f"/api/chapters/book/{book_id}",
+            json={"title": "Chapter 1", "order": 1},
+        ).json()["id"]
+
+        client.put(
+            f"/api/chapters/{chapter_id}",
+            json={"content": '"Listen closely," the recording said.'},
+        )
+
+        save_roster_response = client.put(
+            f"/api/voice-studio/books/{book_id}/voice-map",
+            json={"characters": [], "narrator": {"character_name": "Narrator"}},
+        )
+        assert save_roster_response.status_code == 200
+
+        save_plan_response = client.put(
+            f"/api/voice-studio/chapters/{chapter_id}/voice-map",
+            json={
+                "characters": [],
+                "narrator_speaker": "Narrator",
+                "segments": [
+                    {
+                        "index": 1,
+                        "type": "dialogue",
+                        "speaker": "Narrator",
+                        "text": "Listen closely,",
+                        "delivery_hint": "neutral",
+                    },
+                    {
+                        "index": 2,
+                        "type": "narration",
+                        "speaker": "Narrator",
+                        "text": "the recording said.",
+                        "delivery_hint": "neutral",
+                    },
+                ],
+            },
+        )
+        assert save_plan_response.status_code == 200
+        assert save_plan_response.json()["unassigned_segment_count"] == 0
+
     def test_ai_refine_chapter_plan_updates_narrator_and_speakers(self, tmp_path, monkeypatch):
         import voice_mapping
 
