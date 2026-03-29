@@ -8,8 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import sqlalchemy
 from sqlalchemy.orm import joinedload
-import db
-from db import Book, Chapter, BookStatus, TTSJob, TTSJobStatus, CharacterVoice, get_session
+from db import Book, Chapter, BookStatus, TTSJob, get_session
 
 
 ITEMS_PER_PAGE = 10

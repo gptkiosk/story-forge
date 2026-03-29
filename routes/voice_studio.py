@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, StreamingResponse
 from typing import Any, Optional
 from pydantic import BaseModel
 import asyncio
-import json
 from ai_providers import ai_provider_manager
 from context_engine import build_runtime_context_packet
 from db_helpers import get_book_by_id, get_chapter_with_tts_jobs, get_chapters_for_book, get_tts_job, get_tts_jobs, delete_tts_job

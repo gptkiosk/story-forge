@@ -301,7 +301,6 @@ def save_style_profile(
         session.commit()
         session.refresh(row)
 
-        studio_dir = _studio_dir(book_id)
         get_style_markdown_path(book_id).write_text(style_markdown or "", encoding="utf-8")
         get_genre_markdown_path(book_id).write_text(genre_markdown or "", encoding="utf-8")
         get_style_profile_path(book_id).write_text(

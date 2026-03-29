@@ -3,7 +3,7 @@ Books routes for Story Forge API
 """
 from fastapi import APIRouter, HTTPException, Request
 from schemas import (
-    BookCreate, BookUpdate, BookResponse, BookListResponse, BooksPaginatedResponse, ChapterCreate,
+    BookCreate, BookUpdate, BookResponse, BooksPaginatedResponse, ChapterCreate,
     to_book_list_item, to_book_response, to_chapter_response
 )
 from db_helpers import (

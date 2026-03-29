@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 import auth
 import preferences
-from db import get_session
 
 from .auth_schemas import UserResponse, AuthStatus, ThemeResponse, UserPreferenceResponse
 

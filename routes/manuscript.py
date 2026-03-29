@@ -4,7 +4,6 @@ Manuscript export routes for Story Forge API
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pathlib import Path
 from .auth_utils import require_auth
 import manuscript as manuscript_module
 

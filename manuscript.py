@@ -24,7 +24,6 @@ Standard manuscript formatting:
 import logging
 import shutil
 from datetime import datetime
-from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
@@ -41,9 +40,9 @@ from ebooklib import epub
 
 from odf.opendocument import OpenDocumentText
 from odf.style import Style, TextProperties, ParagraphProperties, PageLayoutProperties, PageLayout, MasterPage
-from odf.text import P, H
+from odf.text import P
 
-from db import Book, Chapter, get_session
+from db import Book, get_session
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -521,7 +520,7 @@ def _export_pdf(book, chapters, output_dir, font_name, font_size, double_spaced,
 
 
 def _export_kdp_proof_pdf(book, chapters, output_dir, font_name, font_size, double_spaced, include_title_page) -> dict:
-    base = _safe_filename(f"kdp-proof-hardback")
+    base = _safe_filename("kdp-proof-hardback")
     filename = f"{base}.pdf"
     path = output_dir / filename
 
