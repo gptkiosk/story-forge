@@ -92,5 +92,6 @@ def test_openclaw_prompt_for_story_direction_forbids_em_dashes_and_scene_breaks(
             "story_context": {"summary_text": "Context"},
         }
     )
-    assert "do not use em dashes" in prompt
-    assert "do not use triple hyphen scene breaks" in prompt
+    normalized = prompt.lower()
+    assert "do not use em dashes" in normalized
+    assert "do not use triple hyphen scene breaks" in normalized
