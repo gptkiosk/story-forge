@@ -2,6 +2,8 @@
 Route-level regression tests for Story Forge API.
 """
 
+import asyncio
+import base64
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -532,6 +534,86 @@ class TestStyleStudioRoutes:
 
 
 class TestIllustrationStudioRoutes:
+    def test_openrouter_image_generation_uses_chat_completions_and_parses_data_url(self, monkeypatch):
+        import routes.illustration_studio as illustration_routes
+
+        monkeypatch.setattr(
+            illustration_routes,
+            "get_illustration_settings",
+            lambda: {
+                "provider": "openrouter",
+                "openrouter": {
+                    "model": "google/gemini-2.5-flash-image-preview",
+                    "size": "1536x1024",
+                    "background": "opaque",
+                },
+            },
+        )
+        monkeypatch.setattr(
+            illustration_routes,
+            "get_openrouter_settings",
+            lambda: {
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key": "or-key",
+                "site_url": "http://localhost:5173",
+                "app_name": "Story Forge",
+            },
+        )
+
+        captured = {}
+        encoded = base64.b64encode(b"png-bytes").decode("ascii")
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "images": [
+                                    {
+                                        "image_url": {
+                                            "url": f"data:image/png;base64,{encoded}",
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+
+        class FakeAsyncClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def post(self, url, headers=None, json=None):
+                captured["url"] = url
+                captured["headers"] = headers
+                captured["json"] = json
+                return FakeResponse()
+
+        monkeypatch.setattr(illustration_routes.httpx, "AsyncClient", FakeAsyncClient)
+
+        result = asyncio.run(
+            illustration_routes._generate_with_openrouter(
+                prompt="Illustrate the moonlit forest.",
+                aspect_ratio="4:3",
+            )
+        )
+
+        assert result == b"png-bytes"
+        assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+        assert captured["json"]["modalities"] == ["image", "text"]
+        assert captured["json"]["image_config"]["aspect_ratio"] == "4:3"
+        assert captured["json"]["messages"][0]["content"] == "Illustrate the moonlit forest."
+
     def test_get_update_and_generate_illustration(self, tmp_path, monkeypatch):
         import illustration_studio
         import routes.illustration_studio as illustration_routes

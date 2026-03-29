@@ -89,33 +89,46 @@ async def _generate_with_openrouter(*, prompt: str, aspect_ratio: str) -> bytes:
 
     payload = {
         "model": provider_settings.get("model"),
-        "prompt": prompt,
-        "size": provider_settings.get("size", "1536x1024"),
-        "n": 1,
-        "response_format": "b64_json",
-        "background": provider_settings.get("background", "opaque"),
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "modalities": ["image", "text"],
+        "stream": False,
+        "image_config": {
+            "aspect_ratio": aspect_ratio or "4:3",
+        },
     }
-    if aspect_ratio:
-        payload["aspect_ratio"] = aspect_ratio
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(
-            f"{openrouter_settings['base_url'].rstrip('/')}/images/generations",
+            f"{openrouter_settings['base_url'].rstrip('/')}/chat/completions",
             headers=headers,
             json=payload,
         )
     if response.status_code != 200:
         raise HTTPException(status_code=502, detail=f"OpenRouter image generation failed: {response.status_code} - {response.text}")
     data = response.json()
-    items = data.get("data") or []
-    if not items:
+    choices = data.get("choices") or []
+    if not choices:
         raise HTTPException(status_code=502, detail="OpenRouter returned no illustration payload.")
-    first = items[0]
-    if first.get("b64_json"):
-        return base64.b64decode(first["b64_json"])
-    if first.get("url"):
+    message = (choices[0] or {}).get("message") or {}
+    images = message.get("images") or []
+    if not images:
+        raise HTTPException(status_code=502, detail="OpenRouter illustration response did not include image data.")
+    first = images[0] or {}
+    image_url = first.get("image_url") or first.get("imageUrl") or {}
+    url = image_url.get("url") if isinstance(image_url, dict) else None
+    if isinstance(url, str) and url.startswith("data:image"):
+        _, _, encoded = url.partition(",")
+        if not encoded:
+            raise HTTPException(status_code=502, detail="OpenRouter returned an invalid inline image payload.")
+        return base64.b64decode(encoded)
+    if isinstance(url, str) and url:
         async with httpx.AsyncClient(timeout=180.0) as client:
-            image_response = await client.get(first["url"])
+            image_response = await client.get(url)
         image_response.raise_for_status()
         return image_response.content
     raise HTTPException(status_code=502, detail="OpenRouter illustration response did not include image data.")
