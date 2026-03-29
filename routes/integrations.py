@@ -69,7 +69,7 @@ class IllustrationOpenRouterSettingsRequest(BaseModel):
 
 class IllustrationSettingsRequest(BaseModel):
     provider: str = "openrouter"
-    prompt_refiner: str = "active_ai"
+    prompt_refiner: str = "openrouter"
     openrouter: IllustrationOpenRouterSettingsRequest = IllustrationOpenRouterSettingsRequest()
 
 

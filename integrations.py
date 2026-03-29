@@ -52,7 +52,7 @@ DEFAULT_SETTINGS = {
     },
     "illustration": {
         "provider": "openrouter",
-        "prompt_refiner": "active_ai",
+        "prompt_refiner": "openrouter",
         "openrouter": {
             "enabled": True,
             "model": os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.5-flash-image-preview"),
@@ -115,6 +115,8 @@ def get_settings() -> dict:
     sanitized["ai"]["openrouter"]["api_key_configured"] = bool(_get_secret(OPENROUTER_KEYCHAIN_KEY))
     sanitized["backup"]["google_drive"]["coming_soon"] = False
     sanitized["tts"]["elevenlabs"]["api_key_configured"] = bool(_get_secret(ELEVENLABS_KEYCHAIN_KEY))
+    if sanitized["illustration"].get("prompt_refiner") == "active_ai" and sanitized["ai"].get("provider") == "openclaw":
+        sanitized["illustration"]["prompt_refiner"] = "openrouter"
     return sanitized
 
 
@@ -177,7 +179,7 @@ def update_illustration_settings(payload: dict) -> dict:
     if provider != "openrouter":
         raise ValueError("Only OpenRouter is currently supported for illustration generation.")
 
-    prompt_refiner = illustration_settings.get("prompt_refiner", settings["illustration"].get("prompt_refiner", "active_ai"))
+    prompt_refiner = illustration_settings.get("prompt_refiner", settings["illustration"].get("prompt_refiner", "openrouter"))
     if prompt_refiner not in {"active_ai", "openrouter"}:
         raise ValueError("Unsupported illustration prompt refiner.")
 
