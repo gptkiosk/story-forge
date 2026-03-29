@@ -395,6 +395,34 @@ class BookStyleProfile(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class BookIllustrationProfile(Base):
+    """Book-level illustration studio profile."""
+
+    __tablename__ = "book_illustration_profiles"
+
+    id = Column(Integer, primary_key=True)
+    book_id = Column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    style_template_id = Column(String(100), nullable=True)
+    genre_template_id = Column(String(100), nullable=True)
+    style_template_name = Column(String(255), nullable=True)
+    genre_template_name = Column(String(255), nullable=True)
+    style_markdown = Column(Text, nullable=False, default="")
+    genre_markdown = Column(Text, nullable=False, default="")
+    combined_guidance = Column(Text, nullable=False, default="")
+    include_in_epub = Column(Integer, nullable=False, default=0)
+    epub_layout = Column(String(50), nullable=False, default="full_width")
+    preferred_aspect_ratio = Column(String(20), nullable=False, default="4:3")
+
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
 # =============================================================================
 # Session Management
 # =============================================================================
@@ -428,6 +456,7 @@ def init_db() -> None:
     """Initialize database - create all tables."""
     Base.metadata.create_all(bind=engine)
     _ensure_book_front_matter_columns()
+    _ensure_book_illustration_profile_columns()
 
 
 def drop_db() -> None:
@@ -448,6 +477,29 @@ def _ensure_book_front_matter_columns() -> None:
             conn.execute(text("ALTER TABLE books ADD COLUMN preface TEXT"))
         if "prologue" not in existing:
             conn.execute(text("ALTER TABLE books ADD COLUMN prologue TEXT"))
+
+
+def _ensure_book_illustration_profile_columns() -> None:
+    """Add new illustration profile columns for existing SQLite installs."""
+    with engine.begin() as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            ).fetchall()
+        }
+        if "book_illustration_profiles" not in tables:
+            return
+        existing = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(book_illustration_profiles)")).fetchall()
+        }
+        if "include_in_epub" not in existing:
+            conn.execute(text("ALTER TABLE book_illustration_profiles ADD COLUMN include_in_epub INTEGER NOT NULL DEFAULT 0"))
+        if "epub_layout" not in existing:
+            conn.execute(text("ALTER TABLE book_illustration_profiles ADD COLUMN epub_layout VARCHAR(50) NOT NULL DEFAULT 'full_width'"))
+        if "preferred_aspect_ratio" not in existing:
+            conn.execute(text("ALTER TABLE book_illustration_profiles ADD COLUMN preferred_aspect_ratio VARCHAR(20) NOT NULL DEFAULT '4:3'"))
 
 
 # =============================================================================

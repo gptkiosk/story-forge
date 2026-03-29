@@ -15,6 +15,7 @@ import httpx
 from ai_prompt_contracts import (
     chapter_generation_task,
     context_refinement_task,
+    illustration_prompt_task,
     next_chapter_ideas_task,
     shared_json_rules,
     voice_plan_refinement_task,
@@ -273,6 +274,55 @@ class AIProviderManager:
             "success": True,
             "narrator_speaker": data.get("narrator_speaker") or "Narrator",
             "segment_updates": data.get("segment_updates") or [],
+        }
+
+    async def build_illustration_prompt(
+        self,
+        *,
+        book_title: str,
+        chapter_title: str | None,
+        chapter_excerpt: str,
+        scene_prompt: str,
+        story_context: dict,
+        style_studio: dict,
+        illustration_studio: dict,
+        provider_override: str | None = None,
+    ) -> dict:
+        provider = provider_override or get_ai_provider()
+        if provider == "openclaw":
+            return await libby_client.build_illustration_prompt(
+                book_title=book_title,
+                chapter_title=chapter_title,
+                chapter_excerpt=chapter_excerpt,
+                scene_prompt=scene_prompt,
+                story_context=story_context,
+                style_studio=style_studio,
+                illustration_studio=illustration_studio,
+            )
+        response = await self._chat_json(
+            system_prompt=(
+                f"You build production-ready fiction illustration prompts. {shared_json_rules()} "
+                f"{illustration_prompt_task()}"
+            ),
+            user_prompt=(
+                f"Book title: {book_title}\n"
+                f"Chapter title: {chapter_title or ''}\n"
+                f"Chapter excerpt:\n{chapter_excerpt}\n\n"
+                f"Scene prompt: {scene_prompt}\n\n"
+                f"Story context JSON:\n{json.dumps(story_context, ensure_ascii=True)}\n\n"
+                f"Style studio JSON:\n{json.dumps(style_studio, ensure_ascii=True)}\n\n"
+                f"Illustration studio JSON:\n{json.dumps(illustration_studio, ensure_ascii=True)}\n\n"
+                "Return JSON with prompt, caption, and negative_prompt."
+            ),
+        )
+        if not response.get("success"):
+            return response
+        data = response["data"]
+        return {
+            "success": True,
+            "prompt": data.get("prompt") or scene_prompt,
+            "caption": data.get("caption") or (chapter_title or book_title),
+            "negative_prompt": data.get("negative_prompt") or "",
         }
 
 

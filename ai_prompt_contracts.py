@@ -48,3 +48,12 @@ def voice_plan_refinement_task() -> str:
         "Narration should stay neutral by default, but shift when the prose clearly carries fear, grief, urgency, exhaustion, or a strong POV emotional charge. "
         "Dialogue should use delivery hints that reflect the line and nearby narration, not just punctuation."
     )
+
+
+def illustration_prompt_task() -> str:
+    return (
+        "Build one polished book-illustration prompt from the supplied story context, chapter context, and illustration studio guidance. "
+        "Keep continuity accurate, avoid future-only spoilers, and optimize for consistent recurring character appearance, wardrobe, setting logic, and tone. "
+        "The prompt should be visual, concrete, and production-ready for a cost-conscious illustration model. "
+        "Favor readable composition, clear focal hierarchy, and EPUB-friendly staging over excessive detail clutter."
+    )

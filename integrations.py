@@ -50,6 +50,16 @@ DEFAULT_SETTINGS = {
             "enabled": True,
         },
     },
+    "illustration": {
+        "provider": "openrouter",
+        "prompt_refiner": "active_ai",
+        "openrouter": {
+            "enabled": True,
+            "model": os.environ.get("OPENROUTER_IMAGE_MODEL", "google/gemini-2.5-flash-image-preview"),
+            "size": os.environ.get("OPENROUTER_IMAGE_SIZE", "1536x1024"),
+            "background": "opaque",
+        },
+    },
 }
 
 
@@ -160,6 +170,25 @@ def update_tts_settings(payload: dict) -> dict:
     return get_settings()["tts"]
 
 
+def update_illustration_settings(payload: dict) -> dict:
+    settings = _load_raw_settings()
+    illustration_settings = payload or {}
+    provider = illustration_settings.get("provider", settings["illustration"]["provider"])
+    if provider != "openrouter":
+        raise ValueError("Only OpenRouter is currently supported for illustration generation.")
+
+    prompt_refiner = illustration_settings.get("prompt_refiner", settings["illustration"].get("prompt_refiner", "active_ai"))
+    if prompt_refiner not in {"active_ai", "openrouter"}:
+        raise ValueError("Unsupported illustration prompt refiner.")
+
+    next_settings = copy.deepcopy(settings)
+    next_settings["illustration"] = _deep_merge(next_settings["illustration"], illustration_settings)
+    next_settings["illustration"]["provider"] = "openrouter"
+    next_settings["illustration"]["prompt_refiner"] = prompt_refiner
+    _save_raw_settings(next_settings)
+    return get_settings()["illustration"]
+
+
 def get_ai_provider() -> str:
     return get_settings()["ai"]["provider"]
 
@@ -170,6 +199,10 @@ def get_backup_provider() -> str:
 
 def get_tts_provider() -> str:
     return get_settings()["tts"]["provider"]
+
+
+def get_illustration_provider() -> str:
+    return get_settings()["illustration"]["provider"]
 
 
 def get_elevenlabs_api_key() -> str:
@@ -186,6 +219,10 @@ def get_openrouter_settings() -> dict:
         **settings,
         "api_key": _get_secret(OPENROUTER_KEYCHAIN_KEY),
     }
+
+
+def get_illustration_settings() -> dict:
+    return get_settings()["illustration"]
 
 
 def get_integration_status() -> dict:
@@ -234,6 +271,14 @@ def get_integration_status() -> dict:
             "elevenlabs": {
                 **settings["tts"]["elevenlabs"],
                 "configured": settings["tts"]["elevenlabs"].get("api_key_configured", False),
+            },
+        },
+        "illustration": {
+            "provider": settings["illustration"]["provider"],
+            "prompt_refiner": settings["illustration"].get("prompt_refiner", "active_ai"),
+            "openrouter": {
+                **settings["illustration"]["openrouter"],
+                "configured": bool(ai_settings["openrouter"].get("api_key_configured", False)),
             },
         },
     }

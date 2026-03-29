@@ -43,6 +43,7 @@ from odf.style import Style, TextProperties, ParagraphProperties, PageLayoutProp
 from odf.text import P
 
 from db import Book, get_session
+from illustration_studio import get_asset_path, get_epub_illustrations_for_book
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -736,6 +737,7 @@ def _export_odt(book, chapters, output_dir, font_name, font_size, double_spaced,
 
 def _export_epub(book, chapters, output_dir, font_name, font_size, **_kwargs) -> dict:
     ebook = epub.EpubBook()
+    chapter_illustrations = get_epub_illustrations_for_book(book.id)
 
     # Metadata
     ebook.set_identifier(f"story-forge-{book.id}-{datetime.now().strftime('%Y%m%d')}")
@@ -754,6 +756,8 @@ def _export_epub(book, chapters, output_dir, font_name, font_size, **_kwargs) ->
     .title-page {{ text-align: center; margin-top: 30%; }}
     .title-page h1 {{ font-size: 1.5em; }}
     .title-page .author {{ font-size: 1.1em; margin-top: 1em; }}
+    .chapter-illustration {{ text-align: center; margin: 1.25em 0 1.5em; }}
+    .chapter-illustration img {{ max-width: 100%; height: auto; border-radius: 0.35em; }}
     """
     style = epub.EpubItem(uid="style", file_name="style/default.css", media_type="text/css", content=css.encode())
     ebook.add_item(style)
@@ -800,8 +804,31 @@ def _export_epub(book, chapters, output_dir, font_name, font_size, **_kwargs) ->
         toc.append(front_item)
 
     # Chapters
+    added_images: set[str] = set()
     for chapter in chapters:
         content_html = ""
+        illustration_html = ""
+        asset = chapter_illustrations.get(chapter.id)
+        if asset and asset.get("url_path"):
+            image_name = asset["url_path"].rsplit("/", 1)[-1]
+            image_path = get_asset_path(book.id, image_name)
+            if image_path.exists():
+                media_type = "image/png"
+                item = epub.EpubItem(
+                    uid=f"illustration-{chapter.id}",
+                    file_name=f"images/{image_name}",
+                    media_type=media_type,
+                    content=image_path.read_bytes(),
+                )
+                if image_name not in added_images:
+                    ebook.add_item(item)
+                    added_images.add(image_name)
+                caption = (asset.get("caption") or chapter.title).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                illustration_html = (
+                    f'<div class="chapter-illustration">'
+                    f'<img src="images/{image_name}" alt="{caption}" />'
+                    f"</div>"
+                )
         if chapter.content:
             paragraphs = chapter.content.split('\n')
             for para in paragraphs:
@@ -815,6 +842,7 @@ def _export_epub(book, chapters, output_dir, font_name, font_size, **_kwargs) ->
         <html><head><link rel="stylesheet" href="../style/default.css" /></head>
         <body>
         <h1>{chapter.title}</h1>
+        {illustration_html}
         {content_html}
         </body></html>
         """

@@ -20,6 +20,7 @@ from typing import Optional
 from ai_prompt_contracts import (
     chapter_generation_task,
     context_refinement_task,
+    illustration_prompt_task,
     next_chapter_ideas_task,
     shared_json_rules,
     voice_plan_refinement_task,
@@ -47,6 +48,7 @@ class SubmissionType:
     CONTEXT_REFINEMENT = "context_refinement"  # Refine extracted story context
     NEXT_CHAPTER_IDEAS = "next_chapter_ideas"  # Generate next chapter scenarios
     VOICE_PLAN_REFINEMENT = "voice_plan_refinement"  # Refine chapter narrator/dialogue assignments
+    ILLUSTRATION_PROMPT = "illustration_prompt"  # Build a polished illustration prompt
 
 
 class SubmissionStatus:
@@ -261,6 +263,34 @@ class LibbyClient:
         }
         return await self._send_request("/process", payload)
 
+    async def build_illustration_prompt(
+        self,
+        *,
+        book_title: str,
+        chapter_title: str | None,
+        chapter_excerpt: str,
+        scene_prompt: str,
+        story_context: dict,
+        style_studio: dict,
+        illustration_studio: dict,
+    ) -> dict:
+        payload = {
+            "type": SubmissionType.ILLUSTRATION_PROMPT,
+            "book_title": book_title,
+            "chapter_title": chapter_title,
+            "chapter_excerpt": chapter_excerpt,
+            "scene_prompt": scene_prompt,
+            "story_context": story_context,
+            "style_studio": style_studio,
+            "illustration_studio": illustration_studio,
+            "instructions": (
+                f"{illustration_prompt_task()} "
+                "Return JSON with prompt, caption, and negative_prompt."
+            ),
+            "timestamp": datetime.now().isoformat(),
+        }
+        return await self._send_request("/process", payload)
+
     async def _send_request(self, endpoint: str, payload: dict) -> dict:
         """Send a request to Libby."""
         if self._transport() == "openclaw":
@@ -378,6 +408,14 @@ class LibbyClient:
                 "Task: refine a chapter voice plan.\n"
                 f"{voice_plan_refinement_task()}\n"
                 "Output shape: {\"narrator_speaker\":\"...\",\"segment_updates\":[{\"index\":1,\"speaker\":\"...\",\"delivery_hint\":\"...\",\"type\":\"narration\"}]}\n\n"
+                f"Payload:\n{json_dumps(payload)}"
+            )
+        if request_type == SubmissionType.ILLUSTRATION_PROMPT:
+            return (
+                f"{shared_rules}\n\n"
+                "Task: build one polished illustration prompt for Story Forge.\n"
+                f"{illustration_prompt_task()}\n"
+                "Output shape: {\"prompt\":\"...\",\"caption\":\"...\",\"negative_prompt\":\"...\"}\n\n"
                 f"Payload:\n{json_dumps(payload)}"
             )
         if request_type == SubmissionType.CHAPTER_REVIEW:

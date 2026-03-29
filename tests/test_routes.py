@@ -531,6 +531,80 @@ class TestStyleStudioRoutes:
         assert "Keep the prose clean" in payload["combined_guidance"]
 
 
+class TestIllustrationStudioRoutes:
+    def test_get_update_and_generate_illustration(self, tmp_path, monkeypatch):
+        import illustration_studio
+        import routes.illustration_studio as illustration_routes
+
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+        monkeypatch.setattr(illustration_studio, "ILLUSTRATION_STUDIO_ROOT", tmp_path / "illustration_studio")
+        async def fake_generate_with_openrouter(**kwargs):
+            return b"fake-image-bytes"
+
+        monkeypatch.setattr(illustration_routes, "_generate_with_openrouter", fake_generate_with_openrouter)
+
+        async def fake_build_prompt(**kwargs):
+            return {
+                "success": True,
+                "prompt": "A gentle storybook illustration prompt",
+                "caption": "A chapter opener image",
+                "negative_prompt": "blurry",
+            }
+
+        monkeypatch.setattr(illustration_routes.ai_provider_manager, "build_illustration_prompt", fake_build_prompt)
+
+        client = TestClient(app)
+        book_response = client.post(
+            "/api/books",
+            json={
+                "title": "Illustrated Book",
+                "author": "Tester",
+                "description": "Illustration route test",
+                "status": "draft",
+            },
+        )
+        book_id = book_response.json()["id"]
+
+        get_response = client.get(f"/api/books/{book_id}/illustration-studio")
+        assert get_response.status_code == 200
+        assert get_response.json()["book_id"] == book_id
+
+        update_response = client.put(
+            f"/api/books/{book_id}/illustration-studio",
+            json={
+                "style_template_id": "storybook-watercolor",
+                "genre_template_id": "picture-book-wonder",
+                "style_markdown": "# Illustration Style\n\n- Keep it warm.",
+                "genre_markdown": "# Genre Tweaks\n\n- Keep it playful.",
+                "include_in_epub": True,
+                "epub_layout": "full_width",
+                "preferred_aspect_ratio": "4:3",
+            },
+        )
+        assert update_response.status_code == 200
+        payload = update_response.json()
+        assert payload["style_template_id"] == "storybook-watercolor"
+        assert payload["include_in_epub"] is True
+
+        generate_response = client.post(
+            f"/api/books/{book_id}/illustration-studio/generate",
+            json={
+                "chapter_title": "Chapter 1",
+                "chapter_excerpt": "Tommy sees something impossible in the garden.",
+                "scene_label": "Opening plate",
+                "scene_prompt": "Tommy discovers the impossible thing in the garden.",
+            },
+        )
+        assert generate_response.status_code == 200
+        generated = generate_response.json()
+        assert generated["asset"]["caption"] == "A chapter opener image"
+        assert generated["asset"]["scene_label"] == "Opening plate"
+        assert generated["assets"]
+
+
 class TestBackupManifestRoutes:
     def test_get_backup_manifest(self, monkeypatch):
         expected = {
@@ -539,6 +613,7 @@ class TestBackupManifestRoutes:
                 "chapters": {"count": 2, "chapters": [{"id": 7, "book_id": 4, "title": "Chapter 1", "order": 1}]},
                 "voice_rosters": {"count": 1, "book_ids": [4]},
                 "style_studio": {"count": 1, "book_ids": [4]},
+                "illustration_studio": {"count": 1, "book_ids": [4]},
                 "settings": {"has_user_preferences": True, "has_integrations": True},
             }
         }
@@ -1438,9 +1513,11 @@ class TestBookDeletionRoutes:
         monkeypatch.setattr(db, "SessionLocal", test_session_local)
         monkeypatch.setattr(db_helpers, "get_session", test_session_local)
 
-        cleanup_calls = {"context": [], "voice": []}
+        cleanup_calls = {"context": [], "voice": [], "style": [], "illustration": []}
         monkeypatch.setattr(books_routes, "delete_context_for_book", lambda book_id: cleanup_calls["context"].append(book_id))
         monkeypatch.setattr(books_routes, "delete_voice_maps_for_book", lambda book_id: cleanup_calls["voice"].append(book_id))
+        monkeypatch.setattr(books_routes, "delete_style_profile", lambda book_id: cleanup_calls["style"].append(book_id))
+        monkeypatch.setattr(books_routes, "delete_illustration_profile", lambda book_id: cleanup_calls["illustration"].append(book_id))
 
         client = TestClient(app)
         book_response = client.post(
@@ -1458,3 +1535,5 @@ class TestBookDeletionRoutes:
         assert response.status_code == 200
         assert cleanup_calls["context"] == [book_id]
         assert cleanup_calls["voice"] == [book_id]
+        assert cleanup_calls["style"] == [book_id]
+        assert cleanup_calls["illustration"] == [book_id]

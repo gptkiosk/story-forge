@@ -50,6 +50,7 @@ USB_SSD_BACKUP_DIR = USB_SSD_MOUNT / "story-forge-backups"
 SIDECAR_RELATIVE_PATHS = [
     Path("voice_maps"),
     Path("style_studio"),
+    Path("illustration_studio"),
     Path("integrations.json"),
 ]
 
@@ -153,6 +154,7 @@ def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] 
             "chapters": {"count": 0, "chapters": []},
             "voice_rosters": {"count": 0, "book_ids": []},
             "style_studio": {"count": 0, "book_ids": []},
+            "illustration_studio": {"count": 0, "book_ids": []},
             "settings": {"has_user_preferences": False, "has_integrations": False},
         }
     }
@@ -185,6 +187,7 @@ def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] 
         }
         voice_book_ids = set()
         style_book_ids = set()
+        illustration_book_ids = set()
         if "character_voices" in table_names:
             voice_book_ids = {
                 row[0]
@@ -197,6 +200,13 @@ def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] 
                 row[0]
                 for row in connection.execute(
                     "SELECT DISTINCT book_id FROM book_style_profiles ORDER BY book_id"
+                ).fetchall()
+            }
+        if "book_illustration_profiles" in table_names:
+            illustration_book_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT DISTINCT book_id FROM book_illustration_profiles ORDER BY book_id"
                 ).fetchall()
             }
 
@@ -215,6 +225,8 @@ def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] 
             voice_book_ids.add(book_id)
         if relative_path.startswith("style_studio/") and book_id is not None:
             style_book_ids.add(book_id)
+        if relative_path.startswith("illustration_studio/") and book_id is not None:
+            illustration_book_ids.add(book_id)
         if relative_path == "integrations.json":
             manifest["components"]["settings"]["has_integrations"] = True
 
@@ -225,6 +237,10 @@ def _build_backup_manifest(source_db_path: str | Path, sidecars: dict[str, str] 
     manifest["components"]["style_studio"] = {
         "count": len(style_book_ids),
         "book_ids": sorted(style_book_ids),
+    }
+    manifest["components"]["illustration_studio"] = {
+        "count": len(illustration_book_ids),
+        "book_ids": sorted(illustration_book_ids),
     }
     return manifest
 
@@ -246,12 +262,14 @@ def _read_backup_archive(backup_path: str | Path) -> tuple[dict, dict]:
 
 
 def _restore_sidecars(sidecars: dict[str, str], components: set[str] | None = None, book_ids: set[int] | None = None) -> None:
-    components = components or {"voice_rosters", "style_studio", "settings"}
+    components = components or {"voice_rosters", "style_studio", "illustration_studio", "settings"}
     if not book_ids:
         if "voice_rosters" in components:
             shutil.rmtree(DATA_DIR / "voice_maps", ignore_errors=True)
         if "style_studio" in components:
             shutil.rmtree(DATA_DIR / "style_studio", ignore_errors=True)
+        if "illustration_studio" in components:
+            shutil.rmtree(DATA_DIR / "illustration_studio", ignore_errors=True)
         if "settings" in components:
             try:
                 (DATA_DIR / "integrations.json").unlink()
@@ -263,6 +281,9 @@ def _restore_sidecars(sidecars: dict[str, str], components: set[str] | None = No
     if "style_studio" in components and book_ids:
         for book_id in book_ids:
             shutil.rmtree(DATA_DIR / "style_studio" / f"book_{book_id}", ignore_errors=True)
+    if "illustration_studio" in components and book_ids:
+        for book_id in book_ids:
+            shutil.rmtree(DATA_DIR / "illustration_studio" / f"book_{book_id}", ignore_errors=True)
 
     for relative_path, hex_content in (sidecars or {}).items():
         book_id = _extract_sidecar_book_id(relative_path)
@@ -273,6 +294,11 @@ def _restore_sidecars(sidecars: dict[str, str], components: set[str] | None = No
                 continue
         elif relative_path.startswith("style_studio/"):
             if "style_studio" not in components:
+                continue
+            if book_ids and book_id is not None and book_id not in book_ids:
+                continue
+        elif relative_path.startswith("illustration_studio/"):
+            if "illustration_studio" not in components:
                 continue
             if book_ids and book_id is not None and book_id not in book_ids:
                 continue
@@ -349,7 +375,7 @@ def restore_backup_selection(
     chapter_ids: list[int] | None = None,
 ) -> dict:
     requested = set(components)
-    allowed = {"books", "chapters", "voice_rosters", "style_studio", "settings"}
+    allowed = {"books", "chapters", "voice_rosters", "style_studio", "illustration_studio", "settings"}
     if not requested or not requested.issubset(allowed):
         raise RuntimeError("Invalid restore component selection.")
 
@@ -430,6 +456,19 @@ def restore_backup_selection(
                 )
             else:
                 _copy_selected_rows(source_conn, target_conn, "book_style_profiles")
+
+        if "illustration_studio" in requested:
+            if selected_book_ids:
+                placeholders = ", ".join(["?"] * len(selected_book_ids))
+                _copy_selected_rows(
+                    source_conn,
+                    target_conn,
+                    "book_illustration_profiles",
+                    f"WHERE book_id IN ({placeholders})",
+                    tuple(sorted(selected_book_ids)),
+                )
+            else:
+                _copy_selected_rows(source_conn, target_conn, "book_illustration_profiles")
 
         if "settings" in requested:
             _copy_selected_rows(source_conn, target_conn, "users")

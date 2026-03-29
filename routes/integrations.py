@@ -11,6 +11,7 @@ from integrations import (
     get_settings,
     update_ai_settings,
     update_backup_settings,
+    update_illustration_settings,
     update_tts_settings,
 )
 from .auth_utils import require_auth
@@ -57,6 +58,19 @@ class ElevenLabsSettingsRequest(BaseModel):
 class TTSSettingsRequest(BaseModel):
     provider: str = "elevenlabs"
     elevenlabs: ElevenLabsSettingsRequest = ElevenLabsSettingsRequest()
+
+
+class IllustrationOpenRouterSettingsRequest(BaseModel):
+    enabled: bool = True
+    model: str = "google/gemini-2.5-flash-image-preview"
+    size: str = "1536x1024"
+    background: str = "opaque"
+
+
+class IllustrationSettingsRequest(BaseModel):
+    provider: str = "openrouter"
+    prompt_refiner: str = "active_ai"
+    openrouter: IllustrationOpenRouterSettingsRequest = IllustrationOpenRouterSettingsRequest()
 
 
 @router.get("")
@@ -116,5 +130,14 @@ def save_tts_settings(request: Request, body: TTSSettingsRequest):
         elif tts_module.tts_manager._elevenlabs is not None:
             tts_module.tts_manager._elevenlabs = tts_module.ElevenLabsProvider()
         return settings
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.put("/illustration")
+def save_illustration_settings(request: Request, body: IllustrationSettingsRequest):
+    require_auth(request)
+    try:
+        return update_illustration_settings(body.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
