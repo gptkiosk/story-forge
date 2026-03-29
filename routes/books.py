@@ -60,7 +60,10 @@ def create_book_route(request: Request, book: BookCreate):
         title=book.title,
         description=book.description or "",
         author=book.author or "",
-        status=book.status or "draft"
+        status=book.status or "draft",
+        foreword=book.foreword or "",
+        preface=book.preface or "",
+        prologue=book.prologue or "",
     )
 
     return to_book_response(new_book)
@@ -79,6 +82,12 @@ def update_book_route(request: Request, book_id: int, book: BookUpdate):
         kwargs["author"] = book.author
     if book.description is not None:
         kwargs["description"] = book.description
+    if book.foreword is not None:
+        kwargs["foreword"] = book.foreword
+    if book.preface is not None:
+        kwargs["preface"] = book.preface
+    if book.prologue is not None:
+        kwargs["prologue"] = book.prologue
     if book.status is not None:
         kwargs["status"] = book.status
 

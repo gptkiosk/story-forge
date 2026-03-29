@@ -67,6 +67,9 @@ class BookBase(BaseModel):
     title: str
     description: Optional[str] = None
     author: Optional[str] = None
+    foreword: Optional[str] = None
+    preface: Optional[str] = None
+    prologue: Optional[str] = None
     status: str = "draft"
 
 
@@ -111,6 +114,9 @@ class BookUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     author: Optional[str] = None
+    foreword: Optional[str] = None
+    preface: Optional[str] = None
+    prologue: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -218,6 +224,9 @@ def to_book_response(book) -> BookResponse:
         title=book.title,
         description=book.description,
         author=book.author,
+        foreword=book.foreword,
+        preface=book.preface,
+        prologue=book.prologue,
         status=book.status.value if hasattr(book.status, 'value') else str(book.status),
         word_count=book.word_count,
         created_at=book.created_at,

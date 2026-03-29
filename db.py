@@ -139,6 +139,9 @@ class Book(Base):
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     author = Column(String(250), nullable=True)
+    foreword = Column(Text, nullable=True)
+    preface = Column(Text, nullable=True)
+    prologue = Column(Text, nullable=True)
     
     # Encrypted fields for sensitive data
     notes_encrypted = Column(Text, nullable=True)
@@ -424,11 +427,27 @@ def get_session() -> Session:
 def init_db() -> None:
     """Initialize database - create all tables."""
     Base.metadata.create_all(bind=engine)
+    _ensure_book_front_matter_columns()
 
 
 def drop_db() -> None:
     """Drop all tables - use with caution!"""
     Base.metadata.drop_all(bind=engine)
+
+
+def _ensure_book_front_matter_columns() -> None:
+    """Add book front matter columns for existing SQLite installs."""
+    with engine.begin() as conn:
+        existing = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(books)")).fetchall()
+        }
+        if "foreword" not in existing:
+            conn.execute(text("ALTER TABLE books ADD COLUMN foreword TEXT"))
+        if "preface" not in existing:
+            conn.execute(text("ALTER TABLE books ADD COLUMN preface TEXT"))
+        if "prologue" not in existing:
+            conn.execute(text("ALTER TABLE books ADD COLUMN prologue TEXT"))
 
 
 # =============================================================================

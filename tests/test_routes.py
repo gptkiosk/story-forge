@@ -70,6 +70,48 @@ class TestBookAndChapterRoutes:
         assert fetched_book["id"] == created_book["id"]
         assert fetched_book["chapters"] == []
 
+    def test_book_front_matter_persists_through_create_and_update(self, tmp_path, monkeypatch):
+        test_session_local = make_test_session_factory(tmp_path)
+
+        monkeypatch.setattr(db, "SessionLocal", test_session_local)
+        monkeypatch.setattr(db_helpers, "get_session", test_session_local)
+
+        client = TestClient(app)
+
+        create_response = client.post(
+            "/api/books",
+            json={
+                "title": "Front Matter Book",
+                "author": "Tester",
+                "description": "Base description",
+                "foreword": "A short foreword.",
+                "preface": "A short preface.",
+                "prologue": "A shadow moved across Europa.",
+                "status": "draft",
+            },
+        )
+
+        assert create_response.status_code == 200
+        created_book = create_response.json()
+        assert created_book["foreword"] == "A short foreword."
+        assert created_book["preface"] == "A short preface."
+        assert created_book["prologue"] == "A shadow moved across Europa."
+
+        update_response = client.put(
+            f"/api/books/{created_book['id']}",
+            json={
+                "description": "Updated description",
+                "foreword": "Updated foreword",
+                "prologue": "Updated prologue",
+            },
+        )
+        assert update_response.status_code == 200
+        updated_book = update_response.json()
+        assert updated_book["description"] == "Updated description"
+        assert updated_book["foreword"] == "Updated foreword"
+        assert updated_book["preface"] == "A short preface."
+        assert updated_book["prologue"] == "Updated prologue"
+
     def test_create_chapter_then_list_and_get(self, tmp_path, monkeypatch):
         test_session_local = make_test_session_factory(tmp_path)
 

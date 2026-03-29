@@ -82,10 +82,8 @@ app.include_router(style_studio_router, prefix="/api/books", tags=["style-studio
 def startup_event():
     """Initialize database tables on startup."""
     from context_db import init_context_db
-    from db import engine, Base
-    # Import all models to register them
     import db as db_module
-    Base.metadata.create_all(bind=engine)
+    db_module.init_db()
     init_context_db()
 
 

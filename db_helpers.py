@@ -86,7 +86,15 @@ def get_book_by_id(book_id: int) -> Book | None:
         db.close()
 
 
-def create_book(title: str, description: str = "", author: str = "", status: str = "draft") -> Book:
+def create_book(
+    title: str,
+    description: str = "",
+    author: str = "",
+    status: str = "draft",
+    foreword: str = "",
+    preface: str = "",
+    prologue: str = "",
+) -> Book:
     """Create a new book."""
     db = get_session()
     try:
@@ -94,8 +102,12 @@ def create_book(title: str, description: str = "", author: str = "", status: str
             title=title,
             description=description,
             author=author,
+            foreword=foreword,
+            preface=preface,
+            prologue=prologue,
             status=BookStatus(status),
         )
+        book.word_count = _calculate_book_word_count(book)
         db.add(book)
         db.commit()
         # Re-query with eager load so chapters is accessible after session close
@@ -119,6 +131,7 @@ def update_book(book_id: int, **kwargs) -> Book | None:
             if hasattr(book, key):
                 setattr(book, key, value)
 
+        book.word_count = _calculate_book_word_count(book)
         db.commit()
         book = db.query(Book).options(joinedload(Book.chapters)).filter(Book.id == book_id).first()
         return book
@@ -223,13 +236,23 @@ def recalculate_book_word_count(book_id: int) -> int:
         if not book:
             return 0
 
-        chapters = db.query(Chapter).filter(Chapter.book_id == book_id).all()
-        total_words = sum(c.word_count for c in chapters)
+        total_words = _calculate_book_word_count(book)
         book.word_count = total_words
         db.commit()
         return total_words
     finally:
         db.close()
+
+
+def _calculate_book_word_count(book: Book) -> int:
+    """Calculate word count including front matter and chapters."""
+    chapter_words = sum(c.word_count for c in book.chapters or [])
+    front_matter_words = sum(
+        len(section.split())
+        for section in [book.foreword, book.preface, book.prologue]
+        if section
+    )
+    return chapter_words + front_matter_words
 
 
 # TTS Job helpers

@@ -93,6 +93,23 @@ def _get_total_words(chapters: list) -> int:
     return sum(len(c.content.split()) if c.content else 0 for c in chapters)
 
 
+def _front_matter_sections(book: Book) -> list[dict[str, str]]:
+    sections = []
+    if book.foreword and book.foreword.strip():
+        sections.append({"title": "Foreword", "content": book.foreword.strip()})
+    if book.preface and book.preface.strip():
+        sections.append({"title": "Preface", "content": book.preface.strip()})
+    if book.prologue and book.prologue.strip():
+        sections.append({"title": "Prologue", "content": book.prologue.strip()})
+    return sections
+
+
+def _get_total_words_with_front_matter(book: Book, chapters: list) -> int:
+    total = _get_total_words(chapters)
+    total += sum(len(section["content"].split()) for section in _front_matter_sections(book))
+    return total
+
+
 # =============================================================================
 # Export Package (multi-format with checkbox selection)
 # =============================================================================
@@ -173,7 +190,7 @@ def export_package(
             logger.error(f"Failed to export {fmt}: {e}")
             results.append({"format": fmt, "error": str(e)})
 
-    total_words = _get_total_words(chapters)
+    total_words = _get_total_words_with_front_matter(book, chapters)
 
     return {
         "package_dir": str(package_dir),
@@ -213,8 +230,15 @@ def _export_docx(book, chapters, output_dir, font_name, font_size, double_spaced
     if include_title_page:
         _docx_title_page(doc, book, chapters, font_name, font_size)
 
-    for i, chapter in enumerate(chapters):
+    sections = _front_matter_sections(book)
+
+    for i, section in enumerate(sections):
         if i > 0 or include_title_page:
+            doc.add_page_break()
+        _docx_section(doc, section["title"], section["content"], font_name, font_size, double_spaced)
+
+    for i, chapter in enumerate(chapters):
+        if i > 0 or include_title_page or sections:
             doc.add_page_break()
         _docx_chapter(doc, chapter, font_name, font_size, double_spaced)
 
@@ -265,12 +289,16 @@ def _docx_title_page(doc, book, chapters, font_name, font_size):
 
 
 def _docx_chapter(doc, chapter, font_name, font_size, double_spaced):
+    _docx_section(doc, chapter.title, chapter.content, font_name, font_size, double_spaced)
+
+
+def _docx_section(doc, title, content, font_name, font_size, double_spaced):
     for _ in range(4):
         doc.add_paragraph()
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(chapter.title.upper())
+    run = p.add_run(title.upper())
     run.font.name = font_name
     run.font.size = Pt(font_size)
     run.bold = True
@@ -278,8 +306,8 @@ def _docx_chapter(doc, chapter, font_name, font_size, double_spaced):
     for _ in range(2):
         doc.add_paragraph()
 
-    if chapter.content:
-        for para_text in chapter.content.split('\n'):
+    if content:
+        for para_text in content.split('\n'):
             para_text = para_text.strip()
             if not para_text:
                 continue
@@ -307,7 +335,7 @@ def export_manuscript_docx(book_id, font_name="Times New Roman", font_size=12,
         raise ValueError(f"Book has no chapters: {book.title}")
 
     result = _export_docx(book, chapters, MANUSCRIPT_DIR, font_name, font_size, double_spaced, include_title_page)
-    total_words = _get_total_words(chapters)
+    total_words = _get_total_words_with_front_matter(book, chapters)
     result.update({
         "word_count": total_words,
         "chapter_count": len(chapters),
@@ -329,8 +357,17 @@ def _export_txt(book, chapters, output_dir, **_kwargs) -> dict:
     lines.append(book.title.upper())
     lines.append(f"by {book.author or 'Unknown Author'}")
     lines.append("")
-    lines.append("---")
-    lines.append("")
+    for section in _front_matter_sections(book):
+        lines.append(section["title"].upper())
+        lines.append("")
+        for para in section["content"].split('\n'):
+            para = para.strip()
+            if para:
+                lines.append(f"    {para}")
+                lines.append("")
+        lines.append("")
+        lines.append("* * *")
+        lines.append("")
 
     for chapter in chapters:
         lines.append("")
@@ -363,7 +400,7 @@ def export_manuscript_txt(book_id) -> dict:
         raise ValueError(f"Book has no chapters: {book.title}")
 
     result = _export_txt(book, chapters, MANUSCRIPT_DIR)
-    total_words = _get_total_words(chapters)
+    total_words = _get_total_words_with_front_matter(book, chapters)
     result.update({
         "word_count": total_words,
         "chapter_count": len(chapters),
@@ -447,10 +484,22 @@ def _export_pdf(book, chapters, output_dir, font_name, font_size, double_spaced,
             story.append(Paragraph(f"Approximately {rounded:,} words", title_style))
         story.append(PageBreak())
 
-    for i, chapter in enumerate(chapters):
-        if i > 0:
-            story.append(PageBreak())
+    sections = _front_matter_sections(book)
 
+    for i, section in enumerate(sections):
+        if i > 0 or include_title_page:
+            story.append(PageBreak())
+        story.append(Spacer(1, 1 * inch))
+        story.append(Paragraph(f"<b>{section['title'].upper()}</b>", chapter_heading_style))
+        story.append(Spacer(1, 24))
+        for para_text in section["content"].split('\n'):
+            para_text = para_text.strip()
+            if para_text:
+                story.append(Paragraph(para_text, body_style))
+
+    for i, chapter in enumerate(chapters):
+        if i > 0 or include_title_page or sections:
+            story.append(PageBreak())
         story.append(Spacer(1, 1 * inch))
         story.append(Paragraph(f"<b>{chapter.title.upper()}</b>", chapter_heading_style))
         story.append(Spacer(1, 24))
@@ -537,8 +586,21 @@ def _export_kdp_proof_pdf(book, chapters, output_dir, font_name, font_size, doub
         story.append(Paragraph(book.author or "Unknown Author", title_style))
         story.append(PageBreak())
 
+    sections = _front_matter_sections(book)
+
+    for i, section in enumerate(sections):
+        if i > 0 or include_title_page:
+            story.append(PageBreak())
+        story.append(Spacer(1, 0.75 * inch))
+        story.append(Paragraph(f"<b>{section['title'].upper()}</b>", chapter_style))
+        story.append(Spacer(1, 18))
+        for para_text in section["content"].split('\n'):
+            para_text = para_text.strip()
+            if para_text:
+                story.append(Paragraph(para_text, body_style))
+
     for i, chapter in enumerate(chapters):
-        if i > 0:
+        if i > 0 or include_title_page or sections:
             story.append(PageBreak())
 
         story.append(Spacer(1, 0.75 * inch))
@@ -617,8 +679,30 @@ def _export_odt(book, chapters, output_dir, font_name, font_size, double_spaced,
         doc.automaticstyles.addElement(pb_style)
         doc.text.addElement(P(stylename=pb_style))
 
+    sections = _front_matter_sections(book)
+
+    for i, section in enumerate(sections):
+        if i > 0 or include_title_page:
+            pb_style_n = Style(name=f"PB_FRONT_{i}", family="paragraph")
+            pb_style_n.addElement(ParagraphProperties(breakbefore="page"))
+            doc.automaticstyles.addElement(pb_style_n)
+            doc.text.addElement(P(stylename=pb_style_n))
+
+        p = P(stylename=chapter_style)
+        p.addText(section["title"].upper())
+        doc.text.addElement(p)
+
+        doc.text.addElement(P())
+
+        for para_text in section["content"].split('\n'):
+            para_text = para_text.strip()
+            if para_text:
+                p = P(stylename=body_style)
+                p.addText(para_text)
+                doc.text.addElement(p)
+
     for i, chapter in enumerate(chapters):
-        if i > 0:
+        if i > 0 or include_title_page or sections:
             pb_style_n = Style(name=f"PB{i}", family="paragraph")
             pb_style_n.addElement(ParagraphProperties(breakbefore="page"))
             doc.automaticstyles.addElement(pb_style_n)
@@ -693,6 +777,28 @@ def _export_epub(book, chapters, output_dir, font_name, font_size, **_kwargs) ->
     title_chapter.add_item(style)
     ebook.add_item(title_chapter)
     spine.append(title_chapter)
+
+    for index, section in enumerate(_front_matter_sections(book), start=1):
+        content_html = ""
+        for para in section["content"].split('\n'):
+            para = para.strip()
+            if para:
+                para = para.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                content_html += f"<p>{para}</p>\n"
+
+        section_html = f"""
+        <html><head><link rel="stylesheet" href="../style/default.css" /></head>
+        <body>
+        <h1>{section["title"]}</h1>
+        {content_html}
+        </body></html>
+        """
+        front_item = epub.EpubHtml(title=section["title"], file_name=f"front_{index:02d}.xhtml", lang='en')
+        front_item.content = section_html.encode()
+        front_item.add_item(style)
+        ebook.add_item(front_item)
+        spine.append(front_item)
+        toc.append(front_item)
 
     # Chapters
     for chapter in chapters:
